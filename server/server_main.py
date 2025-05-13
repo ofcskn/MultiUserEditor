@@ -42,20 +42,30 @@ def handle_client(conn, addr):
 
                 if cmd == "LOGIN":
                     username = msg.get("username")
+                    if any(info['username'] == username for info in clients.values()):
+                        conn.sendall(json.dumps({"cmd": "ERROR", "message": "Kullanıcı adı kullanımda."}).encode())
+                        continue
                     clients[conn] = {'username': username, 'file': None}
-                    conn.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys())}).encode())
+                    conn.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys()), "username": username}).encode())
 
                 elif cmd == "CREATE_FILE":
                     filename = msg.get("filename")
                     with lock:
                         files[filename] = ""
                     conn.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys())}).encode())
+                    # Tüm diğer istemcilere güncel dosya listesini gönder
+                    for client in clients:
+                        if client != conn:
+                            try:
+                                client.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys())}).encode())
+                            except:
+                                continue
 
                 elif cmd == "JOIN_FILE":
                     filename = msg.get("filename")
                     clients[conn]['file'] = filename
                     content = files.get(filename, "")
-                    conn.sendall(json.dumps({"cmd": "LOAD", "content": content}).encode())
+                    conn.sendall(json.dumps({"cmd": "LOAD", "content": content, "filename": filename}).encode())
 
                 elif cmd == "TEXT_UPDATE":
                     filename = clients[conn]['file']
