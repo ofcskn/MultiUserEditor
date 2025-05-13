@@ -19,8 +19,23 @@ class EditorWindow(QMainWindow):
         self.sock = sock
         self.filename = filename
         self.setWindowTitle(f"{username} - Düzenleniyor: {filename}")
+        
+        # Metin düzenleyicisi
         self.text_edit = QTextEdit()
         self.setCentralWidget(self.text_edit)
+
+        # Kaydet butonu
+        self.save_button = QPushButton("Kaydet")
+        self.save_button.clicked.connect(self.save_file)  # Kaydet butonuna tıklama işlevini bağla
+
+        # Butonu layout'a ekle
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.text_edit)
+        self.layout.addWidget(self.save_button)
+        
+        container = QWidget()
+        container.setLayout(self.layout)
+        self.setCentralWidget(container)
 
         self.text_edit.textChanged.connect(self.send_update)
         self.comm = Communicator()
@@ -28,7 +43,20 @@ class EditorWindow(QMainWindow):
 
         threading.Thread(target=self.listen_server, daemon=True).start()
 
+
+    def save_file(self):
+        """
+        Kaydetme işlemi: Dosyadaki içeriği sunucuya gönder.
+        """
+        content = self.text_edit.toPlainText()
+        msg = {"cmd": "TEXT_UPDATE", "content": content}
+        self.sock.sendall(json.dumps(msg).encode())
+        print(f"[+] {self.filename} kaydedildi.")
+
     def closeEvent(self, event):
+        """
+        Editor kapatildiginda bu fonksiyon calisir.
+        """
         if self.parent_selector:
             self.parent_selector.open_editors.pop(self.filename, None)
         super().closeEvent(event)
