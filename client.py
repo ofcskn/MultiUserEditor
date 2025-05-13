@@ -5,12 +5,13 @@ import json
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLineEdit, QPushButton,
       QVBoxLayout, QWidget, QListWidget, QTextEdit, QMessageBox, QLabel)
 from PySide6.QtCore import Signal, QObject
-from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu)
+from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QAbstractItemView, QListWidget)
 from PySide6.QtGui import QActionEvent
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu, QWidget, QToolBar)
 from PySide6.QtGui import QTextCharFormat, QFont, QAction
 
 from constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_LOGIN
+from server import load_users
 from session import AppSession
 
 HOST = '127.0.0.1'
@@ -144,22 +145,46 @@ class FileSelector(QMainWindow):
         self.user_label = QLabel(f"Kullanıcı: {username}")
         self.file_list = QListWidget()
 
+        self.new_file_input_label = QLabel("Dosya Adı")
         self.new_file_input = QLineEdit()
         self.new_file_input.setPlaceholderText("Yeni dosya adı")
 
-        self.file_viewers_input = QLineEdit()
-        self.file_viewers_input.setPlaceholderText("Dosyayı görüntüleme izni olan kullanıcı adları")
+        
+        # Scrollable list for viewers
+        self.viewers_list_label = QLabel(f"Dosya Görüntüleyecekler (seçiniz)")
+        self.file_viewers_list = QListWidget()
+        self.file_viewers_list.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.file_viewers_list.setFixedHeight(100)  # adjust as needed
 
-        self.file_editors_input = QLineEdit()
-        self.file_editors_input.setPlaceholderText("Dosyayı düzenleme izni olan kullanıcı adları")
+        self.editors_list_label = QLabel(f"Dosya Düzenleyecekler (seçiniz)")
+        # Scrollable list for editors
+        self.file_editors_list = QListWidget()
+        self.file_editors_list.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.file_editors_list.setFixedHeight(100)  # adjust as needed
+
+        # Get all usernames without current user
+        # Example users to populate the lists
+        usernames = load_users()
+
+        for username in usernames:
+            print(username)
+            self.file_viewers_list.addItem(username)
+            self.file_editors_list.addItem(username)
 
         self.new_file_btn = QPushButton("Dosya Oluştur")
 
         self.layout.addWidget(self.user_label)
         self.layout.addWidget(self.file_list)
+
+        self.layout.addWidget(self.new_file_input_label)
         self.layout.addWidget(self.new_file_input)
-        self.layout.addWidget(self.file_viewers_input)
-        self.layout.addWidget(self.file_editors_input)
+
+        self.layout.addWidget(self.viewers_list_label)
+        self.layout.addWidget(self.file_viewers_list)
+
+        self.layout.addWidget(self.editors_list_label)
+        self.layout.addWidget(self.file_editors_list)
+
         self.layout.addWidget(self.new_file_btn)
 
         self.container = QWidget()
@@ -180,14 +205,18 @@ class FileSelector(QMainWindow):
 
     def create_file(self):
         name = self.new_file_input.text().strip()
-        viewers = self.file_viewers_input.text().strip()
-        editors = self.file_editors_input.text().strip()
+        selected_viewers = [item.text() for item in self.file_viewers_list.selectedItems()]
+        selected_editors = [item.text() for item in self.file_editors_list.selectedItems()]
+
+        # Join them with semicolon
+        viewers_str = ";".join(selected_viewers)
+        editors_str = ";".join(selected_editors)
+
         # Get the logged user for ownership
         owner_username = session.get_user()
-        print("owner_username", owner_username)
 
         if name:
-            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": viewers, "editors": editors}
+            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": viewers_str, "editors": editors_str}
             self.sock.sendall(json.dumps(msg).encode())
 
     def join_file(self, item):
