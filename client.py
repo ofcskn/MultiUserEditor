@@ -11,19 +11,26 @@ from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton,
 from PySide6.QtGui import QTextCharFormat, QFont, QAction
 
 from constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_LOGIN
+from session import AppSession
 
 HOST = '127.0.0.1'
 PORT = 65433
+
+session = AppSession()
 
 class Communicator(QObject):
     update_signal = Signal(str)
 
 class EditorWindow(QMainWindow):
-    def __init__(self, sock, filename, username, parent=None):
+    def __init__(self, sock, filename, parent=None):
         super().__init__(parent)
         self.parent_selector = parent  # FileSelector referansını burada tutalım
         self.sock = sock
         self.filename = filename
+
+        # Get username from the session
+        username = session.get_user()
+
         self.setWindowTitle(f"{username} - Düzenleniyor: {filename}")
   
         # Create a rich text editor (QTextEdit for RTF support)
@@ -123,23 +130,36 @@ class EditorWindow(QMainWindow):
 
 class FileSelector(QMainWindow):
     open_editor_signal = Signal(str, str)  # filename, content
-    def __init__(self, sock, username):
+    def __init__(self, sock):
         super().__init__()
+
+        # Get username from the session
+        username = session.get_user()
+
         self.open_editors = {}
         self.sock = sock
-        self.username = username
         self.setWindowTitle(f"Dosya Seç - {username}")
         self.open_editor_signal.connect(self.open_editor_window)
         self.layout = QVBoxLayout()
         self.user_label = QLabel(f"Kullanıcı: {username}")
         self.file_list = QListWidget()
+
         self.new_file_input = QLineEdit()
         self.new_file_input.setPlaceholderText("Yeni dosya adı")
+
+        self.file_viewers_input = QLineEdit()
+        self.file_viewers_input.setPlaceholderText("Dosyayı görüntüleme izni olan kullanıcı adları")
+
+        self.file_editors_input = QLineEdit()
+        self.file_editors_input.setPlaceholderText("Dosyayı düzenleme izni olan kullanıcı adları")
+
         self.new_file_btn = QPushButton("Dosya Oluştur")
 
         self.layout.addWidget(self.user_label)
         self.layout.addWidget(self.file_list)
         self.layout.addWidget(self.new_file_input)
+        self.layout.addWidget(self.file_viewers_input)
+        self.layout.addWidget(self.file_editors_input)
         self.layout.addWidget(self.new_file_btn)
 
         self.container = QWidget()
@@ -153,15 +173,21 @@ class FileSelector(QMainWindow):
 
     def open_editor_window(self, filename, content):
         # FileSelector içinde EditorWindow açıldığında:
-        editor = EditorWindow(self.sock, filename=filename, username=self.username, parent=self)
+        editor = EditorWindow(self.sock, filename=filename, parent=self)
         editor.text_edit.setText(content)
         editor.show()
         self.open_editors[filename] = editor 
 
     def create_file(self):
         name = self.new_file_input.text().strip()
+        viewers = self.file_viewers_input.text().strip()
+        editors = self.file_editors_input.text().strip()
+        # Get the logged user for ownership
+        owner_username = session.get_user()
+        print("owner_username", owner_username)
+
         if name:
-            msg = {"cmd": MSG_CREATE_FILE, "filename": name}
+            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": viewers, "editors": editors}
             self.sock.sendall(json.dumps(msg).encode())
 
     def join_file(self, item):
@@ -211,7 +237,6 @@ class LoginWindow(QMainWindow):
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText("Şifre giriniz")
         
-        
         self.login_button = QPushButton("Giriş Yap ya da Kaydol")
         self.layout.addWidget(self.username_input)
         self.layout.addWidget(self.password_input)
@@ -226,17 +251,21 @@ class LoginWindow(QMainWindow):
     def login(self):
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
-        print(username, password)
+
         if username and password:
             msg = {"cmd": MSG_LOGIN, "username": username, "password": password}
             self.sock.sendall(json.dumps(msg).encode())
             data = self.sock.recv(4096)
             msg = json.loads(data.decode())
+            
+            # Create a session to hold important informations
+            session.set_user(username)
+
             if msg.get("cmd") == MSG_ERROR:
                 QMessageBox.warning(self, "Hata", msg.get("message"))
                 return
             elif msg.get("cmd") == MSG_FILE_LIST:
-                self.selector = FileSelector(self.sock, username=username)
+                self.selector = FileSelector(self.sock)
                 self.selector.file_list.clear()
                 for f in msg.get("files", []):
                     self.selector.file_list.addItem(f)

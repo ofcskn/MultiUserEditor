@@ -55,13 +55,13 @@ def save_user(username, password):
             writer = csv.writer(file)
             writer.writerow([username, hash_password(password)])
 
-def add_file_metadata(filename):
+def add_file_metadata(filename, owner, viewers=None, editors=None):
     extension = os.path.splitext(filename)[1]
     size = len(files[filename].encode('utf-8'))
     create_date = datetime.now().isoformat()
     with open(FILES_CSV, 'a', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow([filename, extension, create_date, size])
+        writer.writerow([filename, extension, create_date, size, owner, viewers, editors])
 
 def broadcast_update(filename, message, exclude_sock=None):
     for client, info in clients.items():
@@ -111,9 +111,12 @@ def handle_client(conn, addr):
 
                 elif cmd == MSG_CREATE_FILE:
                     filename = msg.get("filename")
+                    owner = msg.get("owner")
+                    viewers = msg.get("viewers")
+                    editors = msg.get("editors")
                     with lock:
                         files[filename] = ""
-                        add_file_metadata(filename)
+                        add_file_metadata(filename, owner, viewers, editors)
                     conn.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys())}).encode())
 
                     for client in clients:
