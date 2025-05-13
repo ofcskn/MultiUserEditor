@@ -5,7 +5,8 @@ import json
 from PySide6.QtWidgets import (QApplication, QMainWindow, QLineEdit, QPushButton,
       QVBoxLayout, QWidget, QListWidget, QTextEdit, QMessageBox, QLabel)
 from PySide6.QtCore import Signal, QObject
-
+from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu)
+from PySide6.QtGui import QActionEvent
 HOST = '127.0.0.1'
 PORT = 65432
 
@@ -81,6 +82,40 @@ class EditorWindow(QMainWindow):
                     self.comm.update_signal.emit(msg.get("content"))
             except:
                 break
+
+    def contextMenuEvent(self, event):
+        """Override right-click context menu event"""
+        context_menu = QMenu(self)
+
+        # Add Cut, Copy, Paste actions to the menu
+        cut_action = QActionEvent("Kes", self)
+        cut_action.triggered.connect(self.cut_text)
+
+        copy_action = QActionEvent("Kopyala", self)
+        copy_action.triggered.connect(self.copy_text)
+
+        paste_action = QActionEvent("Yapıştır", self)
+        paste_action.triggered.connect(self.paste_text)
+
+        # Add actions to context menu
+        context_menu.addAction(cut_action)
+        context_menu.addAction(copy_action)
+        context_menu.addAction(paste_action)
+
+        # Show the context menu at the mouse position
+        context_menu.exec_(event.globalPos())
+
+    def cut_text(self):
+        """Handle the cut action"""
+        self.text_edit.cut()
+
+    def copy_text(self):
+        """Handle the copy action"""
+        self.text_edit.copy()
+
+    def paste_text(self):
+        """Handle the paste action"""
+        self.text_edit.paste()
 
 class CollaborativeEditor(QWidget):
     def __init__(self):
