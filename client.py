@@ -7,8 +7,13 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QLineEdit, QPushButton
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu)
 from PySide6.QtGui import QActionEvent
+from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu, QWidget, QToolBar)
+from PySide6.QtGui import QTextCharFormat, QFont, QAction
+
+from constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_LOGIN
+
 HOST = '127.0.0.1'
-PORT = 65432
+PORT = 65433
 
 class Communicator(QObject):
     update_signal = Signal(str)
@@ -20,20 +25,48 @@ class EditorWindow(QMainWindow):
         self.sock = sock
         self.filename = filename
         self.setWindowTitle(f"{username} - Düzenleniyor: {filename}")
-        
-        # Metin düzenleyicisi
+  
+        # Create a rich text editor (QTextEdit for RTF support)
         self.text_edit = QTextEdit()
         self.setCentralWidget(self.text_edit)
 
-        # Kaydet butonu
-        self.save_button = QPushButton("Kaydet")
-        self.save_button.clicked.connect(self.save_file)  # Kaydet butonuna tıklama işlevini bağla
+        # Create toolbar for formatting buttons
+        self.toolbar = QToolBar()
+        self.addToolBar(self.toolbar)
 
-        # Butonu layout'a ekle
+        # Bold button
+        bold_action = QAction("Bold", self)
+        bold_action.triggered.connect(self.set_bold)
+        self.toolbar.addAction(bold_action)
+
+        # Italic button
+        italic_action = QAction("Italic", self)
+        italic_action.triggered.connect(self.set_italic)
+        self.toolbar.addAction(italic_action)
+
+        # Underline button
+        underline_action = QAction("Underline", self)
+        underline_action.triggered.connect(self.set_underline)
+        self.toolbar.addAction(underline_action)
+
+        # Save button
+        self.save_button = QPushButton("Kaydet")
+        self.save_button.clicked.connect(self.save_file)
+
+        # Layout setup
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.text_edit)
         self.layout.addWidget(self.save_button)
-        
+
+        container = QWidget()
+        container.setLayout(self.layout)
+        self.setCentralWidget(container)
+
+        # Layout setup
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.text_edit)
+        self.layout.addWidget(self.save_button)
+
         container = QWidget()
         container.setLayout(self.layout)
         self.setCentralWidget(container)
@@ -44,13 +77,12 @@ class EditorWindow(QMainWindow):
 
         threading.Thread(target=self.listen_server, daemon=True).start()
 
-
     def save_file(self):
         """
-        Kaydetme işlemi: Dosyadaki içeriği sunucuya gönder.
+        Save the RTF content: Send the current text content as HTML (RTF-like) format to the server.
         """
-        content = self.text_edit.toPlainText()
-        msg = {"cmd": "TEXT_UPDATE", "content": content}
+        content = self.text_edit.toHtml()  # Use toHtml() for rich text content
+        msg = {"cmd": MSG_FILE_UPDATE, "content": content}
         self.sock.sendall(json.dumps(msg).encode())
         print(f"[+] {self.filename} kaydedildi.")
 
@@ -63,109 +95,31 @@ class EditorWindow(QMainWindow):
         super().closeEvent(event)
 
     def send_update(self):
-        msg = {"cmd": "TEXT_UPDATE", "content": self.text_edit.toPlainText()}
+        msg = {"cmd": MSG_FILE_UPDATE, "content": self.text_edit.toPlainText()}
         self.sock.sendall(json.dumps(msg).encode())
 
     def apply_update(self, content):
+        """
+        Apply updates from the server. This method will receive rich text content.
+        """
         self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(content)
+        self.text_edit.setHtml(content)  # Apply the HTML content (formatted text)
         self.text_edit.blockSignals(False)
 
     def listen_server(self):
+        """
+        Listen for updates from the server.
+        """
         while True:
             try:
                 data = self.sock.recv(4096)
                 if not data:
                     break
                 msg = json.loads(data.decode())
-                if msg.get("cmd") == "TEXT_UPDATE":
+                if msg.get("cmd") == MSG_FILE_UPDATE:
                     self.comm.update_signal.emit(msg.get("content"))
             except:
                 break
-
-    def contextMenuEvent(self, event):
-        """Override right-click context menu event"""
-        context_menu = QMenu(self)
-
-        # Add Cut, Copy, Paste actions to the menu
-        cut_action = QActionEvent("Kes", self)
-        cut_action.triggered.connect(self.cut_text)
-
-        copy_action = QActionEvent("Kopyala", self)
-        copy_action.triggered.connect(self.copy_text)
-
-        paste_action = QActionEvent("Yapıştır", self)
-        paste_action.triggered.connect(self.paste_text)
-
-        # Add actions to context menu
-        context_menu.addAction(cut_action)
-        context_menu.addAction(copy_action)
-        context_menu.addAction(paste_action)
-
-        # Show the context menu at the mouse position
-        context_menu.exec_(event.globalPos())
-
-    def cut_text(self):
-        """Handle the cut action"""
-        self.text_edit.cut()
-
-    def copy_text(self):
-        """Handle the copy action"""
-        self.text_edit.copy()
-
-    def paste_text(self):
-        """Handle the paste action"""
-        self.text_edit.paste()
-
-class CollaborativeEditor(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Gerçek Zamanlı Ortak Editör")
-        self.resize(600, 400)
-
-        self.text_edit = QTextEdit()
-        layout = QVBoxLayout()
-        layout.addWidget(self.text_edit)
-        self.setLayout(layout)
-
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((HOST, PORT))
-
-        self.communicator = Communicator()
-        self.communicator.update_signal.connect(self.update_text_from_server)
-
-        self.text_edit.textChanged.connect(self.on_text_changed)
-        self.ignore_changes = False
-
-        threading.Thread(target=self.listen_to_server, daemon=True).start()
-
-    def on_text_changed(self):
-        if self.ignore_changes:
-            return
-        text = self.text_edit.toPlainText()
-        try:
-            self.sock.sendall(text.encode('utf-8'))
-        except:
-            pass
-
-    def listen_to_server(self):
-        while True:
-            try:
-                data = self.sock.recv(4096)
-                if not data:
-                    break
-                text = data.decode('utf-8')
-                self.communicator.update_signal.emit(text)
-            except:
-                break
-
-    def update_text_from_server(self, text):
-        self.ignore_changes = True
-        self.text_edit.setPlainText(text)
-        self.ignore_changes = False
-
-    def closeEvent(self, event):
-        self.sock.close()
 
 class FileSelector(QMainWindow):
     open_editor_signal = Signal(str, str)  # filename, content
@@ -200,19 +154,19 @@ class FileSelector(QMainWindow):
     def open_editor_window(self, filename, content):
         # FileSelector içinde EditorWindow açıldığında:
         editor = EditorWindow(self.sock, filename=filename, username=self.username, parent=self)
-        editor.text_edit.setPlainText(content)
+        editor.text_edit.setText(content)
         editor.show()
         self.open_editors[filename] = editor 
 
     def create_file(self):
         name = self.new_file_input.text().strip()
         if name:
-            msg = {"cmd": "CREATE_FILE", "filename": name}
+            msg = {"cmd": MSG_CREATE_FILE, "filename": name}
             self.sock.sendall(json.dumps(msg).encode())
 
     def join_file(self, item):
         filename = item.text()
-        self.sock.sendall(json.dumps({"cmd": "JOIN_FILE", "filename": filename}).encode())
+        self.sock.sendall(json.dumps({"cmd": MSG_JOIN_FILE, "filename": filename}).encode())
 
     def listen_server(self):
         while True:
@@ -222,11 +176,11 @@ class FileSelector(QMainWindow):
                 if not data:
                     break
                 msg = json.loads(data.decode())
-                if msg.get("cmd") == "FILES":
+                if msg.get("cmd") == MSG_FILE_LIST:
                     self.file_list.clear()
                     for f in msg.get("files", []):
                         self.file_list.addItem(f)
-                elif msg.get("cmd") == "LOAD":
+                elif msg.get("cmd") == MSG_FILE_LIST:
                     filename = msg.get("filename", "[dosya]")
                     if filename in self.open_editors:
                         self.open_editors[filename].raise_()  # pencere zaten açıksa öne getir
@@ -234,7 +188,7 @@ class FileSelector(QMainWindow):
                     else:
                         self.open_editor_signal.emit(filename, msg.get("content", ""))
 
-                elif msg.get("cmd") == "ERROR":
+                elif msg.get("cmd") == MSG_ERROR:
                     QMessageBox.critical(self, "Hata", msg.get("message", "Bilinmeyen hata"))
             except Exception as e:
                 print("Client Error:", e)
@@ -251,8 +205,15 @@ class LoginWindow(QMainWindow):
         self.layout = QVBoxLayout()
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Kullanıcı Adı")
-        self.login_button = QPushButton("Giriş Yap")
+
+        # password input
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Şifre giriniz")
+
+
+        self.login_button = QPushButton("Giriş Yap ya da Kaydol")
         self.layout.addWidget(self.username_input)
+        self.layout.addWidget(self.password_input)
         self.layout.addWidget(self.login_button)
 
         self.container = QWidget()
@@ -263,15 +224,17 @@ class LoginWindow(QMainWindow):
 
     def login(self):
         username = self.username_input.text().strip()
-        if username:
-            msg = {"cmd": "LOGIN", "username": username}
+        password = self.password_input.text().strip()
+        print(username, password)
+        if username and password:
+            msg = {"cmd": MSG_LOGIN, "username": username, "password": password}
             self.sock.sendall(json.dumps(msg).encode())
             data = self.sock.recv(4096)
             msg = json.loads(data.decode())
-            if msg.get("cmd") == "ERROR":
+            if msg.get("cmd") == MSG_ERROR:
                 QMessageBox.warning(self, "Hata", msg.get("message"))
                 return
-            elif msg.get("cmd") == "FILES":
+            elif msg.get("cmd") == MSG_FILE_LIST:
                 self.selector = FileSelector(self.sock, username=username)
                 self.selector.file_list.clear()
                 for f in msg.get("files", []):
