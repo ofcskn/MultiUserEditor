@@ -208,9 +208,10 @@ class LoginWindow(QMainWindow):
 
         # password input
         self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText("Şifre giriniz")
-
-
+        
+        
         self.login_button = QPushButton("Giriş Yap ya da Kaydol")
         self.layout.addWidget(self.username_input)
         self.layout.addWidget(self.password_input)
