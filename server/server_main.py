@@ -11,7 +11,7 @@ files = {}    # filename -> content (str)
 lock = threading.Lock()
 
 SAVE_INTERVAL = 5  # seconds
-SAVE_FOLDER = 'server_files'
+SAVE_FOLDER = 'data'
 os.makedirs(SAVE_FOLDER, exist_ok=True)
 
 def broadcast_update(filename, message, exclude_sock=None):
