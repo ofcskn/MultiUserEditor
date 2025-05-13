@@ -10,30 +10,31 @@ def handle_client(conn, addr):
     print(f"[+] Yeni bağlantı: {addr}")
     while True:
         try:
-            data = conn.recv(1024)
+            data = conn.recv(4096)
             if not data:
                 break
             print(f"[{addr}] {data.decode()}")
-            # Şimdilik herkese geri yayınla
             for c in clients:
                 if c != conn:
-                    c.sendall(data)
+                    try:
+                        c.sendall(data)
+                    except:
+                        pass
         except:
             break
-    conn.close()
-    clients.remove(conn)
     print(f"[-] Bağlantı kapandı: {addr}")
+    clients.remove(conn)
+    conn.close()
 
 def start_server():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((HOST, PORT))
-    server.listen()
-    print(f"[Server] Dinleniyor: {HOST}:{PORT}")
-    while True:
-        conn, addr = server.accept()
-        clients.append(conn)
-        thread = threading.Thread(target=handle_client, args=(conn, addr))
-        thread.start()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((HOST, PORT))
+        s.listen()
+        print(f"[Server] Dinleniyor: {HOST}:{PORT}")
+        while True:
+            conn, addr = s.accept()
+            clients.append(conn)
+            threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
 
 if __name__ == "__main__":
     start_server()
