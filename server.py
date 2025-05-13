@@ -5,7 +5,7 @@ import json
 import csv
 from datetime import datetime
 import hashlib
-from constants import MSG_CREATE_FILE, MSG_JOIN_FILE, MSG_LOGIN, MSG_FILE_UPDATE
+from constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_LOGIN, MSG_FILE_UPDATE
 
 HOST = '127.0.0.1'
 PORT = 65433
@@ -97,14 +97,14 @@ def handle_client(conn, addr):
 
                     if username in users:
                         if users[username] != hashed:
-                            conn.sendall(json.dumps({"cmd": "ERROR", "message": "Şifre yanlış."}).encode())
+                            conn.sendall(json.dumps({"cmd": MSG_ERROR, "message": "Şifre yanlış."}).encode())
                             continue
                     else:
                         save_user(username, password)
 
                     clients[conn] = {'username': username, 'file': None}
                     conn.sendall(json.dumps({
-                        "cmd": "FILES",
+                        "cmd": MSG_FILE_LIST,
                         "files": list(files.keys()),
                         "username": username
                     }).encode())
@@ -117,12 +117,12 @@ def handle_client(conn, addr):
                     with lock:
                         files[filename] = ""
                         add_file_metadata(filename, owner, viewers, editors)
-                    conn.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys())}).encode())
+                    conn.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
 
                     for client in clients:
                         if client != conn:
                             try:
-                                client.sendall(json.dumps({"cmd": "FILES", "files": list(files.keys())}).encode())
+                                client.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
                             except:
                                 continue
 
@@ -131,7 +131,7 @@ def handle_client(conn, addr):
                     clients[conn]['file'] = filename
                     content = files.get(filename, "")
                     conn.sendall(json.dumps({
-                        "cmd": "LOAD",
+                        "cmd": MSG_JOIN_FILE,
                         "content": content,
                         "filename": filename
                     }).encode())
@@ -142,7 +142,7 @@ def handle_client(conn, addr):
                     with lock:
                         files[filename] = content
                     broadcast_update(filename, json.dumps({
-                        "cmd": "TEXT_UPDATE",
+                        "cmd": MSG_FILE_UPDATE,
                         "content": content
                     }), exclude_sock=conn)
 
