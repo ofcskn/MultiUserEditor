@@ -2,24 +2,32 @@
 
 ## FILE STRUCTURE
 
-collab_editor/
+MultiUserEditor/
 │
-├── client/
-│ ├── client_main.py # Masaüstü arayüz ve istemci başlatıcı
-│ ├── gui.py # Tkinter tabanlı editör arayüzü
-│ ├── client_protocol.py # Protokol işlemleri (paket oluşturma / çözme)
-│ └── connection.py # İstemciden sunucuya bağlantı ve mesaj gönderme
-│
-├── server/
-│ ├── server_main.py # Sunucu başlatıcı
-│ ├── server_handler.py # Her istemci bağlantısını yöneten işleyici
-│ ├── server_protocol.py # Protokol mesajlarını yorumlama
-│ └── file_manager.py # Sunucuda dosya kayıt ve paylaşım işlemleri
-│
-├── protocol/
-│ └── fsm_definition.md # Sonlu durum makinesi ve mesaj türleri tablosu
-│
-├── shared/
-│ └── constants.py # Ortak mesaj türleri, hata kodları, ayarlar
-│
+├──.venv/ # Python virtual environment
+├── www/files/
+├── data/ # JSON database
+│ └── files.json # Files table
+│ └── users.json # Users table
+├── .gitignore # Ignored .git files
+├── broadcast.py
+├── client.py # PySide6 client
+├── constants.py
+├── file_manager.py
+├── handler.py
+└── requirements.txt # Required modules
 └── README.md
+└── server.py # Socket server
+└── session.py # Session server
+└── user_manager.py # User manage actions
+└── utils.py # Utilities
+
+# VERSIONS
+
+## VERSION 1.0 ROADMAP
+
+1. Create a basic socket server and client.
+2. Use PySide6 for GUI.
+3. Add JSON databases for user and file management.
+4. Add permission management for users.
+5. Refactor the code.

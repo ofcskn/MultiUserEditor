@@ -8,16 +8,14 @@ from PySide6.QtCore import Signal, QObject
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QAbstractItemView, QListWidget)
 from PySide6.QtGui import QActionEvent
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu, QWidget, QToolBar)
-from PySide6.QtGui import QTextCharFormat, QFont, QAction
-
-from constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_LOGIN
-from server import load_users
+from PySide6.QtGui import QTextCharFormat, QFont, QAction, Qt
+from constants import HOST, MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_LOAD, MSG_LOGIN, MSG_LOGIN_ERROR, PORT
+from file_manager import load_files
 from session import AppSession
-
-HOST = '127.0.0.1'
-PORT = 65433
+from user_manager import load_users
 
 session = AppSession()
+lock = threading.Lock()
 
 class Communicator(QObject):
     update_signal = Signal(str)
@@ -79,11 +77,53 @@ class EditorWindow(QMainWindow):
         container.setLayout(self.layout)
         self.setCentralWidget(container)
 
-        self.text_edit.textChanged.connect(self.send_update)
+        self.text_edit.textChanged.connect(self.save_file)
         self.comm = Communicator()
         self.comm.update_signal.connect(self.apply_update)
 
         threading.Thread(target=self.listen_server, daemon=True).start()
+
+    def set_bold(self):
+        """Apply bold formatting"""
+        cursor = self.text_edit.textCursor()
+        if cursor.hasSelection():
+            cursor.mergeCharFormat(self.get_bold_format())
+        else:
+            cursor.insertText("Bold")  # Insert text as an example, replace this with actual handling
+
+    def set_italic(self):
+        """Apply italic formatting"""
+        cursor = self.text_edit.textCursor()
+        if cursor.hasSelection():
+            cursor.mergeCharFormat(self.get_italic_format())
+        else:
+            cursor.insertText("Italic")  # Insert text as an example, replace this with actual handling
+
+    def set_underline(self):
+        """Apply underline formatting"""
+        cursor = self.text_edit.textCursor()
+        if cursor.hasSelection():
+            cursor.mergeCharFormat(self.get_underline_format())
+        else:
+            cursor.insertText("Underlined")  # Insert text as an example, replace this with actual handling
+
+    def get_bold_format(self):
+        """Return bold text format"""
+        bold_format = QTextCharFormat()
+        bold_format.setFontWeight(QFont.Bold)
+        return bold_format
+
+    def get_italic_format(self):
+        """Return italic text format"""
+        italic_format = QTextCharFormat()
+        italic_format.setFontItalic(True)
+        return italic_format
+
+    def get_underline_format(self):
+        """Return underline text format"""
+        underline_format = QTextCharFormat()
+        underline_format.setFontUnderline(True)
+        return underline_format
 
     def save_file(self):
         """
@@ -101,10 +141,6 @@ class EditorWindow(QMainWindow):
         if self.parent_selector:
             self.parent_selector.open_editors.pop(self.filename, None)
         super().closeEvent(event)
-
-    def send_update(self):
-        msg = {"cmd": MSG_FILE_UPDATE, "content": self.text_edit.toPlainText()}
-        self.sock.sendall(json.dumps(msg).encode())
 
     def apply_update(self, content):
         """
@@ -133,16 +169,17 @@ class FileSelector(QMainWindow):
     open_editor_signal = Signal(str, str)  # filename, content
     def __init__(self, sock):
         super().__init__()
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
         # Get username from the session
-        username = session.get_user()
+        current_username = session.get_user()
 
         self.open_editors = {}
         self.sock = sock
-        self.setWindowTitle(f"Dosya Seç - {username}")
+        self.setWindowTitle(f"Dosya Seç - {current_username}")
         self.open_editor_signal.connect(self.open_editor_window)
         self.layout = QVBoxLayout()
-        self.user_label = QLabel(f"Kullanıcı: {username}")
+        self.user_label = QLabel(f"Kullanıcı: {current_username}")
         self.file_list = QListWidget()
 
         self.new_file_input_label = QLabel("Dosya Adı")
@@ -163,13 +200,12 @@ class FileSelector(QMainWindow):
         self.file_editors_list.setFixedHeight(100)  # adjust as needed
 
         # Get all usernames without current user
-        # Example users to populate the lists
-        usernames = load_users()
+        users = load_users()
 
-        for username in usernames:
-            print(username)
-            self.file_viewers_list.addItem(username)
-            self.file_editors_list.addItem(username)
+        for user in users:
+            if user["username"] != current_username:
+                self.file_viewers_list.addItem(user["username"])
+                self.file_editors_list.addItem(user["username"])
 
         self.new_file_btn = QPushButton("Dosya Oluştur")
 
@@ -196,6 +232,55 @@ class FileSelector(QMainWindow):
 
         threading.Thread(target=self.listen_server, daemon=True).start()
 
+
+    def show_context_menu(self, pos):
+        item = self.itemAt(pos)
+        if not item:
+            return
+
+        filename = item.text()
+        username = session.get_user()
+
+        menu = QMenu(self)
+        view_action = menu.addAction("View")
+        edit_action = menu.addAction("Edit")
+        delete_action = menu.addAction("Delete")
+
+        action = menu.exec_(self.mapToGlobal(pos))
+
+        if action == view_action:
+            self.try_view_file(filename, username)
+        elif action == edit_action:
+            self.try_edit_file(filename, username)
+        elif action == delete_action:
+            self.try_delete_file(filename, username)
+
+    # def try_view_file(self, filename, username):
+    #     file_info = files.get(filename, {})
+    #     if username not in file_info.get("viewers", []):
+    #         QMessageBox.warning(self, "Permission Denied", "You are not allowed to view this file.")
+    #         return
+    #     self.open_viewer_window(filename)
+
+    # def try_edit_file(self, filename, username):
+    #     file_info = files.get(filename, {})
+    #     if username not in file_info.get("editors", []):
+    #         QMessageBox.warning(self, "Permission Denied", "You are not allowed to edit this file.")
+    #         return
+    #     self.open_editor_window(filename)
+
+    # def try_delete_file(self, filename, username):
+    #     file_info = files.get(filename, {})
+    #     if username not in file_info.get("editors", []):  # Only editors can delete
+    #         QMessageBox.warning(self, "Permission Denied", "You are not allowed to delete this file.")
+    #         return
+
+    #     confirm = QMessageBox.question(self, "Delete File", f"Are you sure you want to delete '{filename}'?")
+    #     if confirm == QMessageBox.Yes:
+    #         with lock:
+    #             files.pop(filename, None)
+    #         self.takeItem(self.row(self.findItems(filename, Qt.MatchExactly)[0]))
+
     def open_editor_window(self, filename, content):
         # FileSelector içinde EditorWindow açıldığında:
         editor = EditorWindow(self.sock, filename=filename, parent=self)
@@ -205,18 +290,15 @@ class FileSelector(QMainWindow):
 
     def create_file(self):
         name = self.new_file_input.text().strip()
+        
         selected_viewers = [item.text() for item in self.file_viewers_list.selectedItems()]
         selected_editors = [item.text() for item in self.file_editors_list.selectedItems()]
-
-        # Join them with semicolon
-        viewers_str = ";".join(selected_viewers)
-        editors_str = ";".join(selected_editors)
 
         # Get the logged user for ownership
         owner_username = session.get_user()
 
         if name:
-            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": viewers_str, "editors": editors_str}
+            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors}
             self.sock.sendall(json.dumps(msg).encode())
 
     def join_file(self, item):
@@ -235,7 +317,7 @@ class FileSelector(QMainWindow):
                     self.file_list.clear()
                     for f in msg.get("files", []):
                         self.file_list.addItem(f)
-                elif msg.get("cmd") == MSG_FILE_LIST:
+                elif msg.get("cmd") == MSG_LOAD:
                     filename = msg.get("filename", "[dosya]")
                     if filename in self.open_editors:
                         self.open_editors[filename].raise_()  # pencere zaten açıksa öne getir
@@ -290,9 +372,10 @@ class LoginWindow(QMainWindow):
             # Create a session to hold important informations
             session.set_user(username)
 
-            if msg.get("cmd") == MSG_ERROR:
-                QMessageBox.warning(self, "Hata", msg.get("message"))
+            if msg.get("cmd") == MSG_LOGIN_ERROR:
+                QMessageBox.warning(self, "Giriş Hatalı: ", msg.get("message"))
                 return
+            
             elif msg.get("cmd") == MSG_FILE_LIST:
                 self.selector = FileSelector(self.sock)
                 self.selector.file_list.clear()
@@ -302,6 +385,7 @@ class LoginWindow(QMainWindow):
                 self.close()
 
 if __name__ == '__main__':
+    # files = load_files()
     app = QApplication(sys.argv)
     win = LoginWindow()
     win.show()
