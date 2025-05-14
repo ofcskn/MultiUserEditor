@@ -12,6 +12,8 @@ MSG_ERROR= "ERROR" # Herhangi bir hata
 MSG_PERMISSION_ERROR = "PERMISSON_ERROR" # İzin hatası
 MSG_LOGIN_ERROR = "LOGIN_ERROR" # Giriş yaparken alınan hata
 MSG_SUCCESS = "SUCCESS" # Başarılı bir aksiyon
+MSG_FILE_UPDATE_SUCCESS = "FILE_UPDATE_SUCCESS"
+MSG_FILE_UPDATE_ERROR = "FILE_UPDATE_ERROR"
 
 # Paket ayırıcı (protokol için)
 DELIMITER = "|"
