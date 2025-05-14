@@ -20,7 +20,7 @@
 MultiUserEditor/
 │
 ├── run.py # Unified launcher for client and server
-├── www/files/ # Shared editable files
+├── files/ # Shared editable files
 ├── data/ # JSON-based storage
 │ ├── users.json
 │ └── files.json
