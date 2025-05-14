@@ -25,7 +25,7 @@ PORT = 65433
 SAVE_INTERVAL = 5  # seconds
 
 DATA_FOLDER = 'data'
-SAVE_FOLDER = 'www/files'
+SAVE_FOLDER = 'files'
 
 USERS_JSON = os.path.join(DATA_FOLDER, 'users.json')
 FILES_JSON = os.path.join(DATA_FOLDER, 'files.json')

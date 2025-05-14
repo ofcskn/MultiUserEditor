@@ -1,7 +1,6 @@
 import socket
 import threading
 from constants import DATA_FOLDER, FILES_JSON, HOST, PORT, SAVE_FOLDER, USERS_JSON
-from file_manager import load_files
 from handler import handle_client
 import json
 import os
