@@ -1,8 +1,8 @@
-from views.file_selector_view import FileSelector
 import socket
 import json
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
-from constants import HOST, MSG_FILE_LIST, MSG_LOGIN, MSG_LOGIN_ERROR, PORT
+from core.constants import HOST, MSG_FILE_LIST, MSG_LOGIN, MSG_LOGIN_ERROR, PORT
+from client.views.file_selector_view import FileSelector
 
 class LoginWindow(QMainWindow):
     def __init__(self, session):

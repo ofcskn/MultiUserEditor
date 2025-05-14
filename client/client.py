@@ -1,13 +1,13 @@
-from views.login_view import LoginWindow
 import sys
 import threading
 from PySide6.QtWidgets import (QApplication)
-from session import AppSession
+from client.views.login_view import LoginWindow
+from client.session import AppSession
 
 session = AppSession()
 lock = threading.Lock()
 
-if __name__ == '__main__':
+def start_client():
     app = QApplication(sys.argv)
     win = LoginWindow(session)
     win.show()

@@ -1,4 +1,4 @@
-from constants import MSG_FILE_UPDATE
+from core.constants import MSG_FILE_UPDATE
 import threading
 import json
 from PySide6.QtWidgets import (QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit, QToolBar)

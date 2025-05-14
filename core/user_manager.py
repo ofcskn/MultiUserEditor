@@ -1,8 +1,7 @@
-import json
-from constants import USERS_JSON
 import os
-
-from utils import hash_password
+import json
+from core.constants import USERS_JSON
+from core.utils import hash_password
 
 def load_users():
     """Loads all users from users.json."""

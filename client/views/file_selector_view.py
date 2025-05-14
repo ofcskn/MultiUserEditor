@@ -3,10 +3,10 @@ import threading
 import json
 from PySide6.QtWidgets import (QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QWidget, QListWidget, QMessageBox, QLabel, QAbstractItemView)
 from PySide6.QtCore import Signal
-from constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
-from session import AppSession
-from user_manager import load_users
-from views.editor_view import EditorWindow
+from core.constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
+from client.session import AppSession
+from core.user_manager import load_users
+from client.views.editor_view import EditorWindow
 
 class FileSelector(QMainWindow):
     open_editor_signal = Signal(str, str, AppSession, bool)  # filename, content, AppSession, isViewed
