@@ -9,10 +9,10 @@ from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton,
 from PySide6.QtGui import QActionEvent
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QTextEdit, QPushButton, QMenu, QWidget, QToolBar)
 from PySide6.QtGui import QTextCharFormat, QFont, QAction, Qt
-from constants import HOST, MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_LOAD, MSG_LOGIN, MSG_LOGIN_ERROR, PORT
-from file_manager import load_files
+from constants import HOST, MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE, MSG_JOIN_FILE, MSG_FILE_LOAD, MSG_LOGIN, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, PORT
 from session import AppSession
 from user_manager import load_users
+from PySide6.QtCore import QTimer
 
 session = AppSession()
 lock = threading.Lock()
@@ -166,48 +166,47 @@ class EditorWindow(QMainWindow):
                 break
 
 class FileSelector(QMainWindow):
-    open_editor_signal = Signal(str, str)  # filename, content
+    open_editor_signal = Signal(str, str, bool)  # filename, content
     def __init__(self, sock):
         super().__init__()
-        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.sock = sock
+        # self.customContextMenuRequested.connect(self.show_context_menu)
 
         # Get username from the session
         current_username = session.get_user()
 
         self.open_editors = {}
-        self.sock = sock
-        self.setWindowTitle(f"Dosya Seç - {current_username}")
         self.open_editor_signal.connect(self.open_editor_window)
+
+        self.setWindowTitle(f"Choose a file - {current_username}")
         self.layout = QVBoxLayout()
-        self.user_label = QLabel(f"Kullanıcı: {current_username}")
+        self.user_label = QLabel(f"Active User: {current_username}")
+
         self.file_list = QListWidget()
 
-        self.new_file_input_label = QLabel("Dosya Adı")
+        self.new_file_input_label = QLabel("Filename")
         self.new_file_input = QLineEdit()
-        self.new_file_input.setPlaceholderText("Yeni dosya adı")
+        self.new_file_input.setPlaceholderText("New file name")
 
-        
         # Scrollable list for viewers
-        self.viewers_list_label = QLabel(f"Dosya Görüntüleyecekler (seçiniz)")
+        self.viewers_list_label = QLabel(f"Viewers (choose)")
         self.file_viewers_list = QListWidget()
         self.file_viewers_list.setSelectionMode(QAbstractItemView.MultiSelection)
         self.file_viewers_list.setFixedHeight(100)  # adjust as needed
 
-        self.editors_list_label = QLabel(f"Dosya Düzenleyecekler (seçiniz)")
+        self.editors_list_label = QLabel(f"Editors (choose)")
         # Scrollable list for editors
         self.file_editors_list = QListWidget()
         self.file_editors_list.setSelectionMode(QAbstractItemView.MultiSelection)
         self.file_editors_list.setFixedHeight(100)  # adjust as needed
 
         # Get all usernames without current user
-        users = load_users()
-
-        for user in users:
+        for user in load_users():
             if user["username"] != current_username:
                 self.file_viewers_list.addItem(user["username"])
                 self.file_editors_list.addItem(user["username"])
 
-        self.new_file_btn = QPushButton("Dosya Oluştur")
+        self.new_file_btn = QPushButton("Create a file")
 
         self.layout.addWidget(self.user_label)
         self.layout.addWidget(self.file_list)
@@ -233,41 +232,22 @@ class FileSelector(QMainWindow):
         threading.Thread(target=self.listen_server, daemon=True).start()
 
 
-    def show_context_menu(self, pos):
-        item = self.itemAt(pos)
-        if not item:
-            return
-
-        filename = item.text()
-        username = session.get_user()
-
-        menu = QMenu(self)
-        view_action = menu.addAction("View")
-        edit_action = menu.addAction("Edit")
-        delete_action = menu.addAction("Delete")
-
-        action = menu.exec_(self.mapToGlobal(pos))
-
-        if action == view_action:
-            self.try_view_file(filename, username)
-        elif action == edit_action:
-            self.try_edit_file(filename, username)
-        elif action == delete_action:
-            self.try_delete_file(filename, username)
-
-    # def try_view_file(self, filename, username):
-    #     file_info = files.get(filename, {})
-    #     if username not in file_info.get("viewers", []):
-    #         QMessageBox.warning(self, "Permission Denied", "You are not allowed to view this file.")
+    # def show_context_menu(self, pos):
+    #     item = self.itemAt(pos)
+    #     if not item:
     #         return
-    #     self.open_viewer_window(filename)
 
-    # def try_edit_file(self, filename, username):
-    #     file_info = files.get(filename, {})
-    #     if username not in file_info.get("editors", []):
-    #         QMessageBox.warning(self, "Permission Denied", "You are not allowed to edit this file.")
-    #         return
-    #     self.open_editor_window(filename)
+    #     filename = item.text()
+    #     username = session.get_user()
+
+    #     menu = QMenu(self)
+    #     delete_action = menu.addAction("Delete")
+
+    #     action = menu.exec_(self.mapToGlobal(pos))
+
+    #     if action == delete_action:
+    #         self.try_delete_file(filename, username)
+
 
     # def try_delete_file(self, filename, username):
     #     file_info = files.get(filename, {})
@@ -281,12 +261,15 @@ class FileSelector(QMainWindow):
     #             files.pop(filename, None)
     #         self.takeItem(self.row(self.findItems(filename, Qt.MatchExactly)[0]))
 
-    def open_editor_window(self, filename, content):
-        # FileSelector içinde EditorWindow açıldığında:
+    def open_editor_window(self, filename, content, isViewer=False):
         editor = EditorWindow(self.sock, filename=filename, parent=self)
         editor.text_edit.setText(content)
+
+        if isViewer:
+            editor.text_edit.setReadOnly(True)
+
         editor.show()
-        self.open_editors[filename] = editor 
+        self.open_editors[filename] = editor
 
     def create_file(self):
         name = self.new_file_input.text().strip()
@@ -317,16 +300,17 @@ class FileSelector(QMainWindow):
                     self.file_list.clear()
                     for f in msg.get("files", []):
                         self.file_list.addItem(f)
-                elif msg.get("cmd") == MSG_LOAD:
+                elif msg.get("cmd") == MSG_FILE_LOAD or msg.get("cmd") == MSG_FILE_LOAD_VIEWER:
                     filename = msg.get("filename", "[dosya]")
                     if filename in self.open_editors:
                         self.open_editors[filename].raise_()  # pencere zaten açıksa öne getir
                         self.open_editors[filename].activateWindow()
                     else:
-                        self.open_editor_signal.emit(filename, msg.get("content", ""))
-
+                        self.open_editor_signal.emit(filename, msg.get("content", ""), True if msg.get("cmd") == MSG_FILE_LOAD_VIEWER else False)
+                # elif msg.get("cmd") == MSG_PERMISSION_ERROR:
+                #     QMessageBox.critical(self, "Hata", msg.get("message", "An permission error occured."))
                 elif msg.get("cmd") == MSG_ERROR:
-                    QMessageBox.critical(self, "Hata", msg.get("message", "Bilinmeyen hata"))
+                    QMessageBox.critical(self, "Hata", msg.get("message", "An error occured."))
             except Exception as e:
                 print("Client Error:", e)
                 break
@@ -334,21 +318,21 @@ class FileSelector(QMainWindow):
 class LoginWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Giriş")
+        self.setWindowTitle("Login")
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((HOST, PORT))
 
         self.layout = QVBoxLayout()
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Kullanıcı Adı")
+        self.username_input.setPlaceholderText("Username")
 
         # password input
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setPlaceholderText("Şifre giriniz")
+        self.password_input.setPlaceholderText("Password")
         
-        self.login_button = QPushButton("Giriş Yap ya da Kaydol")
+        self.login_button = QPushButton("Login/Register")
         self.layout.addWidget(self.username_input)
         self.layout.addWidget(self.password_input)
         self.layout.addWidget(self.login_button)
@@ -373,7 +357,7 @@ class LoginWindow(QMainWindow):
             session.set_user(username)
 
             if msg.get("cmd") == MSG_LOGIN_ERROR:
-                QMessageBox.warning(self, "Giriş Hatalı: ", msg.get("message"))
+                QMessageBox.warning(self, "Login error: ", msg.get("message"))
                 return
             
             elif msg.get("cmd") == MSG_FILE_LIST:
@@ -385,7 +369,6 @@ class LoginWindow(QMainWindow):
                 self.close()
 
 if __name__ == '__main__':
-    # files = load_files()
     app = QApplication(sys.argv)
     win = LoginWindow()
     win.show()

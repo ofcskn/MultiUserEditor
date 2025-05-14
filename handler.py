@@ -3,7 +3,7 @@ import threading
 from broadcast import broadcast_update
 from user_manager import load_users, save_user, validate_user
 from file_manager import load_files, add_file_metadata, save_file_content
-from constants import FILES_JSON, MSG_LOAD, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, SAVE_FOLDER
+from constants import FILES_JSON, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
@@ -105,7 +105,7 @@ def handle_client(conn, addr):
                     viewers = msg.get("viewers", [])  # Ensure fallback to empty list
                     editors = msg.get("editors", [])
 
-                    # Save the file to the server
+                    # Save the file to the
                     save_file_content(filename, "")
                     
                     with threading.Lock():
@@ -131,9 +131,15 @@ def handle_client(conn, addr):
                     # permission for the file 
                     permission_of_file = get_permissions(filename, username)
 
-                    if permission_of_file == "owner" or permission_of_file == "editor" or permission_of_file == "viewer":
+                    if permission_of_file == "owner" or permission_of_file == "editor":
                         conn.sendall(json.dumps({
-                            "cmd": MSG_LOAD,
+                            "cmd": MSG_FILE_LOAD,
+                            "content": content,
+                            "filename": filename
+                        }).encode())
+                    elif permission_of_file == "viewer":
+                            conn.sendall(json.dumps({
+                            "cmd": MSG_FILE_LOAD_VIEWER,
                             "content": content,
                             "filename": filename
                         }).encode())
@@ -154,7 +160,6 @@ def handle_client(conn, addr):
                     permission_of_file = get_permissions(filename, username)
                     if permission_of_file == "owner" or permission_of_file == "editor":
                         handle_update_file(conn, filename, content, username)
-                        
                     else:
                         print("The user has not permission to update the file.")
                         # send error response
