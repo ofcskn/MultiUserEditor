@@ -1,10 +1,12 @@
 import socket
 import json
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
+from client.views.layout_view import BaseWindow
 from core.constants import HOST, MSG_FILE_LIST, MSG_LOGIN, MSG_LOGIN_ERROR, PORT
 from client.views.file_selector_view import FileSelector
+from core.utils import send_json,  recv_json
 
-class LoginWindow(QMainWindow):
+class LoginWindow(BaseWindow):
     def __init__(self, session):
         super().__init__()
         self.setWindowTitle("Login")
@@ -38,11 +40,10 @@ class LoginWindow(QMainWindow):
         password = self.password_input.text().strip()
 
         if username and password:
-            msg = {"cmd": MSG_LOGIN, "username": username, "password": password}
-            self.sock.sendall(json.dumps(msg).encode())
-            data = self.sock.recv(4096)
-            msg = json.loads(data.decode())
-            
+            send_json(self.sock, {"cmd": MSG_LOGIN, "username": username, "password": password})
+
+            msg = recv_json(self.sock)
+
             # Create a session to hold important informations
             self.session.set_user(username)
 
@@ -55,5 +56,5 @@ class LoginWindow(QMainWindow):
                 self.selector.file_list.clear()
                 for f in msg.get("files", []):
                     self.selector.file_list.addItem(f)
-                self.selector.show()
-                self.close()
+                    # Update the content of the current window
+                    self.setCentralWidget(self.selector)

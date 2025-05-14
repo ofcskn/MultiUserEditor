@@ -1,14 +1,17 @@
-from core.constants import MSG_FILE_UPDATE
+from client.views.layout_view import BaseWindow
+from core.constants import MSG_FILE_UPDATE, MSG_FILE_UPDATE_SUCCESS
 import threading
 import json
 from PySide6.QtWidgets import (QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit, QToolBar)
 from PySide6.QtGui import QTextCharFormat, QFont, QAction
 from PySide6.QtCore import Signal, QObject
 
+from core.utils import send_json, recv_json
+
 class Communicator(QObject):
     update_signal = Signal(str)
 
-class EditorWindow(QMainWindow):
+class EditorWindow(BaseWindow):
     def __init__(self, sock, filename, session, parent=None):
         super().__init__(parent)
         self.parent_selector = parent  # FileSelector referansını burada tutalım
@@ -111,8 +114,7 @@ class EditorWindow(QMainWindow):
         """
         content = self.text_edit.toHtml()  # Use toHtml() for rich text content
         msg = {"cmd": MSG_FILE_UPDATE, "content": content}
-        self.sock.sendall(json.dumps(msg).encode())
-        print(f"[+] {self.filename} kaydedildi.")
+        send_json(self.sock, msg)
 
     def closeEvent(self, event):
         """
@@ -136,11 +138,13 @@ class EditorWindow(QMainWindow):
         """
         while True:
             try:
-                data = self.sock.recv(4096)
-                if not data:
+                msg = recv_json(self.sock)
+                if not msg:
                     break
-                msg = json.loads(data.decode())
                 if msg.get("cmd") == MSG_FILE_UPDATE:
                     self.comm.update_signal.emit(msg.get("content"))
+                if msg.get("cmd") == MSG_FILE_UPDATE_SUCCESS:
+                    # Add loader here
+                    print("succesfully")
             except:
                 break

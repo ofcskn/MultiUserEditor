@@ -1,9 +1,10 @@
 import json
 import threading
+from core.utils import generate_unique_filename, recv_json, send_json
 from server.broadcast import broadcast_update
 from core.user_manager import load_users, save_user, validate_user
 from core.file_manager import load_files, add_file_metadata, save_file_content
-from core.constants import FILES_JSON, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, SAVE_FOLDER
+from core.constants import FILES_JSON, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
@@ -28,30 +29,36 @@ def get_permissions(filename, username):
 def handle_update_file(conn, filename, new_content, username):
     if not filename or new_content is None:
         print("Invalid filename or content")
-        conn.sendall(json.dumps({"msg": MSG_ERROR, "content": "Invalid filename or content"}).encode())
+        send_json(conn, {"msg": MSG_ERROR, "content": "Invalid filename or content"})
         return
 
     permission = get_permissions(filename, username)
     if permission not in ("owner", "editor"):
         print("Permission denied for updating the file.")
-        conn.sendall(json.dumps({"cmd": MSG_ERROR, "content": "Permission denied"}).encode())
+        send_json(conn, {"cmd": MSG_ERROR, "content": "Permission denied"})
         return
 
     # Save to memory
     with lock:
         files[filename] = new_content
-
+    
     # Save to disk
     file_path = os.path.join(SAVE_FOLDER, filename)
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
     except Exception as e:
-        conn.sendall(json.dumps({"cmd": MSG_ERROR, "content": f"Failed to save file: {str(e)}"}).encode())
+        send_json(conn, {"cmd": MSG_FILE_UPDATE_ERROR, "content": f"Failed to save file: {str(e)}"})
         return
 
     # Confirm save to sender
-    conn.sendall(json.dumps({"cmd": MSG_SUCCESS, "content": "File updated"}).encode())
+    send_json(conn, {"cmd": MSG_FILE_UPDATE_SUCCESS, "content": "File updated"})
+
+    # # Notify other users
+    # broadcast_update(clients, filename, {
+    #     "cmd": MSG_FILE_UPDATE,
+    #     "content": new_content
+    # }, exclude_sock=conn)
 
     # Notify other users
     broadcast_update(clients, filename, json.dumps({
@@ -65,14 +72,13 @@ def handle_client(conn, addr):
     with conn:
         print(f"[+] Connected by {addr}")
         while True:
-            data = conn.recv(4096)
-            if not data:
-                    print("No data received. Connection may be closed.")
-                    break
+            msg = recv_json(conn)
+
+            if not msg:
+                print("No data received. Connection may be closed.")
+                break
             
             try:
-
-                msg = json.loads(data.decode())
                 cmd = msg.get("cmd")
 
                 if cmd == MSG_LOGIN:
@@ -86,22 +92,24 @@ def handle_client(conn, addr):
 
                     if validate_user(username, password):
                         clients[conn] = {'username': username, 'file': None}
-                        conn.sendall(json.dumps({
+                        send_json(conn, {
                             "cmd": MSG_FILE_LIST,
                             "files": list(files.keys()),
                             "username": username
-                        }).encode())
+                        })
                     else:
                         print("Invalid credentials. Login is not successful.")
                         # send error response
-                        conn.sendall(json.dumps({
+                        send_json(conn, {
                             "cmd": MSG_LOGIN_ERROR,
                             "message": "Invalid credentials. Login is not successful."
-                        }).encode())
+                        })
 
                 elif cmd == MSG_CREATE_FILE:
-                    filename = msg.get("filename")
                     owner = msg.get("owner")
+                    filename = msg.get("filename")
+                    # Create a new filename
+                    filename = generate_unique_filename(owner, filename)
                     viewers = msg.get("viewers", [])  # Ensure fallback to empty list
                     editors = msg.get("editors", [])
 
@@ -112,6 +120,7 @@ def handle_client(conn, addr):
                         files[filename] = ""
                         add_file_metadata(filename, owner, viewers, editors)
 
+                    # send_json(conn, {"cmd": MSG_FILE_LIST, "files": list(files.keys())})
                     conn.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
 
                     # broadcast update for MSG_FILE_LIST
@@ -119,6 +128,7 @@ def handle_client(conn, addr):
                         if client != conn:
                             try:
                                 client.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
+                                # send_json(conn, {"cmd": MSG_FILE_LIST, "files": list(files.keys())})
                             except:
                                 continue
 
@@ -132,24 +142,24 @@ def handle_client(conn, addr):
                     permission_of_file = get_permissions(filename, username)
 
                     if permission_of_file == "owner" or permission_of_file == "editor":
-                        conn.sendall(json.dumps({
+                        send_json(conn, {
                             "cmd": MSG_FILE_LOAD,
                             "content": content,
                             "filename": filename
-                        }).encode())
+                        })
                     elif permission_of_file == "viewer":
-                            conn.sendall(json.dumps({
+                            send_json(conn, {
                             "cmd": MSG_FILE_LOAD_VIEWER,
                             "content": content,
                             "filename": filename
-                        }).encode())
+                        })
                     else:
                         print("The user has not permission to open the file.")
                         # send error response
-                        conn.sendall(json.dumps({
+                        send_json(conn, {
                             "cmd": MSG_PERMISSION_ERROR,
                             "message": "You do not have permission to open this file."
-                        }).encode())
+                        })
 
                 elif cmd == MSG_FILE_UPDATE:
                     filename = clients[conn]['file']
@@ -163,14 +173,13 @@ def handle_client(conn, addr):
                     else:
                         print("The user has not permission to update the file.")
                         # send error response
-                        conn.sendall(json.dumps({
+                        send_json(conn, {
                             "cmd": MSG_PERMISSION_ERROR,
                             "message": "You do not have permission to update this file."
-                        }).encode())
+                        })
 
             except json.JSONDecodeError as e:
                 print("Failed to decode JSON:", e)
-                print("Raw data was:", data)
                 return  # or handle the error gracefully  
                            
             except Exception as e:
