@@ -13,9 +13,9 @@
 - ⚡ Socket-based custom protocol (no third-party server)
 - 🌐 JSON-based lightweight database
 
----
-
 ## 🗂️ Project Structure
+
+```
 
 MultiUserEditor/
 │
@@ -48,7 +48,7 @@ MultiUserEditor/
 ├── .gitignore # Files to ignore in Git
 └── README.md # This file
 
----
+```
 
 ## 🔧 Requirements
 
