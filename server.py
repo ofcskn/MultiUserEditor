@@ -1,10 +1,11 @@
 import socket
 import threading
-from constants import FILES_JSON, HOST, PORT, SAVE_FOLDER, SAVE_INTERVAL, USERS_JSON
+from constants import DATA_FOLDER, FILES_JSON, HOST, PORT, SAVE_FOLDER, USERS_JSON
 from file_manager import load_files
 from handler import handle_client
 import json
-import os 
+import os
+from utils import ensure_folder_exists 
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -25,5 +26,8 @@ if __name__ == "__main__":
     if not os.path.exists(USERS_JSON) or os.stat(USERS_JSON).st_size == 0:
         with open(USERS_JSON, 'w') as f:
             json.dump([], f)
+
+    ensure_folder_exists(DATA_FOLDER)
+    ensure_folder_exists(SAVE_FOLDER)
 
     main()

@@ -3,7 +3,6 @@ from datetime import datetime
 from constants import FILES_JSON, SAVE_FOLDER
 import os
 
-
 def load_files():
     """Loads all file metadata from files.json."""
     files = {}

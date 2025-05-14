@@ -38,7 +38,6 @@ def handle_update_file(conn, filename, new_content, username):
         return
 
     # Save to memory
-    print("files[filename]", files[filename])
     with lock:
         files[filename] = new_content
 
@@ -53,7 +52,6 @@ def handle_update_file(conn, filename, new_content, username):
 
     # Confirm save to sender
     conn.sendall(json.dumps({"cmd": MSG_SUCCESS, "content": "File updated"}).encode())
-    print("broadcast_update")
 
     # Notify other users
     broadcast_update(clients, filename, json.dumps({
@@ -106,15 +104,15 @@ def handle_client(conn, addr):
                     owner = msg.get("owner")
                     viewers = msg.get("viewers", [])  # Ensure fallback to empty list
                     editors = msg.get("editors", [])
+
+                    # Save the file to the server
+                    save_file_content(filename, "")
                     
                     with threading.Lock():
                         files[filename] = ""
                         add_file_metadata(filename, owner, viewers, editors)
 
                     conn.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
-
-                    # Save the file
-                    save_file_content(filename, "")
 
                     # broadcast update for MSG_FILE_LIST
                     for client in clients:
