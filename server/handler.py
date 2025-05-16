@@ -4,7 +4,7 @@ from core.utils import generate_unique_filename, recv_json, send_json
 from server.broadcast import broadcast_update
 from core.user_manager import load_users, save_user, validate_user
 from core.file_manager import load_files, add_file_metadata, save_file_content
-from core.constants import FILES_JSON, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, SAVE_FOLDER
+from core.constants import FILES_JSON, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
@@ -89,14 +89,22 @@ def handle_client(conn, addr):
                     # Save the user if there is no user with the username
                     if not (username in users):
                         save_user(username, password)
-
+                    
                     if validate_user(username, password):
-                        clients[conn] = {'username': username, 'file': None}
-                        send_json(conn, {
-                            "cmd": MSG_FILE_LIST,
-                            "files": list(files.keys()),
-                            "username": username
-                        })
+                        if any(clients):
+                            if any(data['username'] == username for data in clients.values()):
+                                send_json(conn, {
+                                "cmd": MSG_USER_ACTIVE_SESSION,
+                                "username": username,
+                                "message": f"There is a session for {username}."
+                            })
+                        else:
+                            clients[conn] = {'username': username, 'file': None}
+                            send_json(conn, {
+                                "cmd": MSG_FILE_LIST,
+                                "files": list(files.keys()),
+                                "username": username
+                            })
                     else:
                         print("Invalid credentials. Login is not successful.")
                         # send error response
@@ -140,7 +148,6 @@ def handle_client(conn, addr):
 
                     # permission for the file 
                     permission_of_file = get_permissions(filename, username)
-
                     if permission_of_file == "owner" or permission_of_file == "editor":
                         send_json(conn, {
                             "cmd": MSG_FILE_LOAD,
@@ -148,10 +155,10 @@ def handle_client(conn, addr):
                             "filename": filename
                         })
                     elif permission_of_file == "viewer":
-                            send_json(conn, {
-                            "cmd": MSG_FILE_LOAD_VIEWER,
-                            "content": content,
-                            "filename": filename
+                        send_json(conn, {
+                        "cmd": MSG_FILE_LOAD_VIEWER,
+                        "content": content,
+                        "filename": filename
                         })
                     else:
                         print("The user has not permission to open the file.")
