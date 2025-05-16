@@ -1,5 +1,5 @@
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_FILE_UPDATE, MSG_FILE_UPDATE_SUCCESS
+from core.constants import MSG_ERROR, MSG_FILE_UPDATE, MSG_FILE_UPDATE_SUCCESS
 import threading
 import json
 from PySide6.QtWidgets import (QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit, QToolBar)
@@ -12,12 +12,10 @@ class Communicator(QObject):
     update_signal = Signal(str)
 
 class EditorWindow(BaseWindow):
-    def __init__(self, sock, filename, session, parent=None):
-        super().__init__(parent)
-        self.parent_selector = parent  # FileSelector referansını burada tutalım
-        self.sock = sock
+    def __init__(self, sock, session, filename, parent=None):
+        super().__init__(sock, session, parent)
+        self.parent_selector = parent 
         self.filename = filename
-        self.session = session
 
         # Get username from the session
         username = self.session.get_user()
@@ -63,8 +61,6 @@ class EditorWindow(BaseWindow):
         self.text_edit.textChanged.connect(self.save_file)
         self.comm = Communicator()
         self.comm.update_signal.connect(self.apply_update)
-
-        threading.Thread(target=self.listen_server, daemon=True).start()
 
     def set_bold(self):
         """Apply bold formatting"""
@@ -132,19 +128,25 @@ class EditorWindow(BaseWindow):
         self.text_edit.setHtml(content)  # Apply the HTML content (formatted text)
         self.text_edit.blockSignals(False)
 
-    def listen_server(self):
+    def handle_server_message(self, msg: dict):
         """
-        Listen for updates from the server.
+        Handle a single message received from the server.
         """
-        while True:
-            try:
-                msg = recv_json(self.sock)
-                if not msg:
-                    break
-                if msg.get("cmd") == MSG_FILE_UPDATE:
-                    self.comm.update_signal.emit(msg.get("content"))
-                if msg.get("cmd") == MSG_FILE_UPDATE_SUCCESS:
-                    # Add loader here
-                    print("succesfully")
-            except:
-                break
+        try:
+            cmd = msg.get("cmd")
+
+            if cmd == MSG_FILE_UPDATE:
+                content = msg.get("content", "")
+                self.comm.update_signal.emit(content)
+
+            elif cmd == MSG_FILE_UPDATE_SUCCESS:
+                print("File update was successful.")
+                # Optionally emit a signal to stop a loading spinner here
+
+            elif cmd == MSG_ERROR:
+                error_msg = msg.get("message", "An error occurred.")
+                print(f"Server Error: {error_msg}")
+                # Optionally emit a signal to show this in a QMessageBox
+
+        except Exception as e:
+            print(f"[Client] Error while handling message: {e}")

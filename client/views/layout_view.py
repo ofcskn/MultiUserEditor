@@ -1,11 +1,18 @@
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QPushButton
+from PySide6.QtWidgets import QMainWindow
+from core.socker_receiver import SocketReceiver
+from PySide6.QtWidgets import (QMainWindow)
 
 class BaseWindow(QMainWindow):
-    def __init__(self, parent=None):
+    def __init__(self, sock, session, parent=None):
         super().__init__(parent)
+        self.session = session
+        self.sock = sock
 
-        # Set the main window size
-        self.setFixedSize(800, 800)
+        # Initialize the receiver and connect to the handle_server_message method
+        self.receiver = SocketReceiver(self.sock)
+        self.receiver.message_received.connect(self.handle_server_message)
+        self.receiver.start()
 
-        # Optional: Set window title
-        self.setWindowTitle("MultiUserEditor")
+    def handle_server_message(self, msg: dict):
+        """Handle server messages based on their commands."""
+        print(msg)  # For debugging purposes, print the received message

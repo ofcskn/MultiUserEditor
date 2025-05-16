@@ -4,21 +4,19 @@ from PySide6.QtWidgets import (QMenu, QLineEdit, QPushButton, QVBoxLayout, QWidg
 from PySide6.QtCore import Signal
 from client.views.layout_view import BaseWindow
 from core.constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
-from client.session import AppSession
 from core.user_manager import load_users
 from client.views.editor_view import EditorWindow
 from PySide6.QtCore import Qt
-from core.utils import send_json, recv_json
+from core.utils import send_json
 
 class FileSelector(BaseWindow):
-    open_editor_signal = Signal(str, str, AppSession, bool)  # filename, content, AppSession, isViewed
+    open_editor_signal = Signal(str, str, bool)  # filename, content, isViewed
     def __init__(self, sock, session):
-        super().__init__()
+        super().__init__(sock, session)
         self.sock = sock
-        self.session = session
 
         # Get username from the session
-        current_username = session.get_user()
+        current_username = self.session.get_user()
 
         self.open_editors = {}
         self.open_editor_signal.connect(self.open_editor_window)
@@ -76,9 +74,7 @@ class FileSelector(BaseWindow):
 
         self.file_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_list.customContextMenuRequested.connect(self.on_right_click_to_file_name)
-
-        threading.Thread(target=self.listen_server, daemon=True).start()
-
+        
     def on_right_click_to_file_name(self, position):
         item = self.file_list.itemAt(position)
         if item:
@@ -89,8 +85,7 @@ class FileSelector(BaseWindow):
             if action == open_action:
                 self.join_file(item)
 
-
-    def open_editor_window(self, filename, content, session, isViewer=False):
+    def open_editor_window(self, filename, content, isViewer=False):
         # Eğer dosya zaten açıksa, mevcut pencereyi göster ve odakla
         if filename in self.open_editors:
             editor = self.open_editors[filename]
@@ -98,7 +93,7 @@ class FileSelector(BaseWindow):
             editor.raise_()
             return
         
-        editor = EditorWindow(self.sock, filename=filename, session=session, parent=self)
+        editor = EditorWindow(self.sock, self.session, filename=filename, parent=self)
         editor.text_edit.setText(content)
 
         if isViewer:
@@ -125,23 +120,17 @@ class FileSelector(BaseWindow):
         msg = {"cmd": MSG_JOIN_FILE, "filename": filename}
         send_json(self.sock, msg)
 
-    def listen_server(self):
-        while True:
-            try:
-                msg = recv_json(self.sock)
-                if not msg:
-                    break
-                if msg.get("cmd") == MSG_FILE_LIST:
-                    self.file_list.clear()
-                    for f in msg.get("files", []):
-                        self.file_list.addItem(f)
-                elif msg.get("cmd") == MSG_FILE_LOAD or msg.get("cmd") == MSG_FILE_LOAD_VIEWER:
-                    filename = msg.get("filename", "[dosya]")
-                    self.open_editor_signal.emit(filename, msg.get("content", ""), self.session, True if msg.get("cmd") == MSG_FILE_LOAD_VIEWER else False)
-                # elif msg.get("cmd") == MSG_PERMISSION_ERROR:
-                #     QMessageBox.critical(self, "Hata", msg.get("message", "An permission error occured."))
-                elif msg.get("cmd") == MSG_ERROR:
-                    QMessageBox.critical(self, "Hata", msg.get("message", "An error occured."))
-            except Exception as e:
-                print("Client Error:", e)
-                break
+    def handle_server_message(self, msg: dict):
+        if msg.get("cmd") == MSG_FILE_LIST:
+            self.file_list.clear()
+            for f in msg.get("files", []):
+                self.file_list.addItem(f)
+
+        elif msg.get("cmd") in [MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER]:
+            filename = msg.get("filename", "[dosya]")
+            content = msg.get("content", "")
+            is_viewer = msg.get("cmd") == MSG_FILE_LOAD_VIEWER
+            self.open_editor_signal.emit(filename, content, is_viewer)
+
+        elif msg.get("cmd") == MSG_ERROR:
+            QMessageBox.critical(self, "Hata", msg.get("message", "Bir hata oluştu."))

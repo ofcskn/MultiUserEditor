@@ -1,19 +1,13 @@
-import socket
-import json
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
 from client.views.layout_view import BaseWindow
-from core.constants import HOST, MSG_FILE_LIST, MSG_LOGIN, MSG_LOGIN_ERROR, PORT
+from core.constants import HOST, MSG_FILE_LIST, MSG_LOGIN, MSG_LOGIN_ERROR, MSG_USER_ACTIVE_SESSION, PORT
 from client.views.file_selector_view import FileSelector
-from core.utils import send_json,  recv_json
+from core.utils import send_json
 
 class LoginWindow(BaseWindow):
-    def __init__(self, session):
-        super().__init__()
+    def __init__(self, sock, session):
+        super().__init__(sock, session)
         self.setWindowTitle("Login")
-
-        self.session = session
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((HOST, PORT))
 
         self.layout = QVBoxLayout()
         self.username_input = QLineEdit()
@@ -42,19 +36,21 @@ class LoginWindow(BaseWindow):
         if username and password:
             send_json(self.sock, {"cmd": MSG_LOGIN, "username": username, "password": password})
 
-            msg = recv_json(self.sock)
-
             # Create a session to hold important informations
             self.session.set_user(username)
 
-            if msg.get("cmd") == MSG_LOGIN_ERROR:
-                QMessageBox.warning(self, "Login error: ", msg.get("message"))
-                return
-            
-            elif msg.get("cmd") == MSG_FILE_LIST:
-                self.selector = FileSelector(self.sock, self.session)
-                self.selector.file_list.clear()
-                for f in msg.get("files", []):
-                    self.selector.file_list.addItem(f)
-                    # Update the content of the current window
-                    self.setCentralWidget(self.selector)
+    def handle_server_message(self, msg: dict):
+        cmd = msg.get("cmd")
+        if cmd == MSG_LOGIN_ERROR:
+            QMessageBox.warning(self, "Login error: ", msg.get("message"))
+            return
+        elif cmd == MSG_USER_ACTIVE_SESSION:
+            QMessageBox.warning(self, "Login error: ", msg.get("message"))
+            return
+        elif cmd == MSG_FILE_LIST:
+            self.selector = FileSelector(self.sock, self.session)
+            self.selector.file_list.clear()
+            for f in msg.get("files", []):
+                self.selector.file_list.addItem(f)
+                # Update the content of the current window
+                self.setCentralWidget(self.selector)
