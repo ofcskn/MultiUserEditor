@@ -87,12 +87,12 @@ def handle_client(conn, addr):
                     users = load_users()
 
                     # Save the user if there is no user with the username
-                    if not (username in users):
+                    if not any(user['username'] == username for user in users):
                         save_user(username, password)
                     
                     if validate_user(username, password):
-                        if any(clients):
-                            if any(data['username'] == username for data in clients.values()):
+                        if any(data['username'] == username for data in clients.values()):
+                                print(f"active session for {username}")
                                 send_json(conn, {
                                 "cmd": MSG_USER_ACTIVE_SESSION,
                                 "username": username,
