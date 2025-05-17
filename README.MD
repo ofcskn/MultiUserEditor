@@ -136,6 +136,11 @@ pyinstaller --noconfirm --clean --windowed main.py
 
 Ömer Faruk COŞKUN (@ofcskn)
 
+# PROTOCOL
+
+[Protocol-Turkish](protocols/PROTOCOL_TR.MD)
+[Protocol-English](protocols/PROTOCOL_EN.MD)
+
 # VERSIONS
 
 ## VERSION 1.0 ROADMAP
