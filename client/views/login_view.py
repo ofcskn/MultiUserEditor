@@ -1,15 +1,20 @@
-from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
+from PySide6.QtWidgets import (QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
 from client.views.layout_view import BaseWindow
 from core.constants import MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_LOGIN_ERROR, MSG_USER_ACTIVE_SESSION
-from client.views.file_selector_view import FileSelector
 from core.utils import send_json
+from PySide6.QtCore import Qt
 
 class LoginWindow(BaseWindow):
     def __init__(self, sock, session, receiver, controller):
         super().__init__(sock, session, receiver, controller)
         self.setWindowTitle("Login")
-
+        
+        # Main layout
         self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(100, 100, 100, 100)
+        self.layout.setAlignment(Qt.AlignTop)  # Align widgets to the top
+        self.layout.setSpacing(10)  # Optional: control spacing between widgets
+
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Username")
 
@@ -22,7 +27,7 @@ class LoginWindow(BaseWindow):
         self.layout.addWidget(self.username_input)
         self.layout.addWidget(self.password_input)
         self.layout.addWidget(self.login_button)
-        self.setLayout(self.layout)
+        self.setLayout(self.layout) 
 
         self.login_button.clicked.connect(self.login)
 
