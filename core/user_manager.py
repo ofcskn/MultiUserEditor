@@ -26,6 +26,28 @@ def validate_user(username, password):
         return True
     return False
 
+def isValidUser(username):
+    """
+    Checks if the given username is NOT present in users.json.
+    Returns True if the username is not found, or if the file doesn't exist or is invalid.
+    """
+    if not os.path.exists("users.json"):
+        return True  # File doesn't exist, treat user as invalid
+
+    try:
+        with open("users.json", "r", encoding="utf-8") as f:
+            users = json.load(f)
+
+        # Check if username exists in any user dict
+        for user in users:
+            if user.get("username") == username:
+                return True  # Valid user found
+
+        return False  # Username not found
+
+    except (json.JSONDecodeError, IOError, TypeError):
+        return False  # Error in reading/parsing the file → invalid user
+
 def user_can_edit(username, file_metadata):
     return username == file_metadata.get("owner") or username in file_metadata.get("editors", [])
 
