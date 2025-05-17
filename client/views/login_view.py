@@ -1,8 +1,9 @@
 from PySide6.QtWidgets import (QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_SERVER_REDIRECT_TO_FILES_VIEW, MSG_CLIENT_LOGIN, MSG_SERVER_LOGIN_FAILURE, MSG_SERVER_USER_ACTIVE_SESSION
+from core.constants import MSG_SERVER_CREATE_USER, MSG_SERVER_REDIRECT_TO_FILES_VIEW, MSG_CLIENT_LOGIN, MSG_SERVER_LOGIN_FAILURE, MSG_SERVER_USER_ACTIVE_SESSION
 from core.utils import send_json
 from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer  # or from PySide2.QtCore import QTimer if using PySide2
 
 class LoginWindow(BaseWindow):
     def __init__(self, sock, session, receiver, controller):
@@ -36,7 +37,7 @@ class LoginWindow(BaseWindow):
         password = self.password_input.text().strip()
 
         if username and password:
-            send_json(self.sock, {"cmd": MSG_CLIENT_LOGIN, "username": username, "password": password})
+            send_json(self.sock, {"cmd": MSG_CLIENT_LOGIN, "payload": { "username": username, "password": password}})
 
             # Create a session to hold important informations
             self.session.set_user(username)
@@ -45,11 +46,14 @@ class LoginWindow(BaseWindow):
 
     def handle_server_message(self, msg):
         cmd = msg.get("cmd")
+        if cmd == MSG_SERVER_CREATE_USER:
+            self.controller.updateAlert("a new user is created")
+
         if cmd == MSG_SERVER_LOGIN_FAILURE:
-            QMessageBox.warning(self, "Login error: ", msg.get("message"))
+            QMessageBox.warning(self, "Login error: ", msg.get("payload", {}).get("message"))
             return
-        elif cmd == MSG_SERVER_USER_ACTIVE_SESSION:
-            QMessageBox.warning(self, "Login error: ", msg.get("message"))
+        if cmd == MSG_SERVER_USER_ACTIVE_SESSION:
+            QMessageBox.warning(self, "Login error: ", msg.get("payload", {}).get("message"))
             return
-        elif cmd == MSG_SERVER_REDIRECT_TO_FILES_VIEW:
-            self.controller.show_selector(msg.get("files", []))
+        if cmd == MSG_SERVER_REDIRECT_TO_FILES_VIEW:
+            self.controller.show_selector(msg.get("payload", {}).get("files", []))

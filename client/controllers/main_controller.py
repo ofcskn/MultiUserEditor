@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (QMainWindow)
 from client.views.editor_view import EditorWindow
 from client.views.file_selector_view import FileSelector
 from client.views.login_view import LoginWindow
-from PySide6.QtGui import QIcon
 
 class MainApp(QMainWindow):
     def __init__(self, sock, session, receiver):
@@ -14,6 +13,10 @@ class MainApp(QMainWindow):
         self.current_view = None
         self.showMaximized()
         self.show_login()
+
+ 
+    def updateAlert(self, text):
+        print("The alert is updated", text)      
 
     def show_login(self):
         # Disconnect old view if exists

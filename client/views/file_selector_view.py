@@ -114,33 +114,33 @@ class FileSelector(BaseWindow):
         owner_username = self.session.get_user()
 
         if name:
-            msg = {"cmd": MSG_CLIENT_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors, "extension": file_extension}
+            msg = {"cmd": MSG_CLIENT_CREATE_FILE, "payload": {"filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors, "extension": file_extension}}
             send_json(self.sock, msg)
         else:
             QMessageBox.critical(self, "Hata", "Please enter a filename.")
 
     def join_file(self, item):
         filename = item.text()
-        msg = {"cmd": MSG_CLIENT_JOIN_FILE, "filename": filename}
+        msg = {"cmd": MSG_CLIENT_JOIN_FILE, "payload": { "filename": filename}}
         send_json(self.sock, msg)
 
     def handle_server_message(self, msg):
         if msg.get("cmd") == MSG_CLIENT_LIST_FILES:
             self.file_list.clear()
-            for filename in msg.get("files", []):
+            for filename in msg.get("payload", {}).get("files", []):
                 item = QListWidgetItem(filename)
                 self.file_list.addItem(item)
         if msg.get("cmd") == MSG_SERVER_UPDATE_LISTED_FILES:
-            self.file_list.addItem(msg.get("filename"))
+            self.file_list.addItem(msg.get("payload", {}).get("filename"))
         if msg.get("cmd") in [MSG_SERVER_LOAD_FILE, MSG_SERVER_LOAD_FILE_VIEWER]:
-            filename = msg.get("filename")
-            content = msg.get("content", "")
+            filename = msg.get("payload", {}).get("filename")
+            content = msg.get("payload", {}).get("content", "")
             is_viewer = msg.get("cmd") == MSG_SERVER_LOAD_FILE_VIEWER
             self.open_editor_signal.emit(filename, content, is_viewer)
         if msg.get("cmd") == MSG_SERVER_FAILURE:
-            QMessageBox.critical(self, "Hata", msg.get("message", "An error occured.."))
+            QMessageBox.critical(self, "Hata", msg.get("payload", {}).get("message", "An error occured.."))
         if msg.get("cmd") == MSG_SERVER_CREATE_FILE_FAILURE:
-            QMessageBox.critical(self, "Hata", msg.get("message", "An error occured."))
+            QMessageBox.critical(self, "Hata", msg.get("payload", {}).get("message", "An error occured."))
 
     def load_files(self, files):
         self.file_list.clear()

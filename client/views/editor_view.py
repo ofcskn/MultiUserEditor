@@ -104,7 +104,7 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
         else:
             content = self.text_edit.toPlainText()
 
-        msg = {"cmd": MSG_CLIENT_UPDATE_FILE, "filename": self.filename, "content": content}
+        msg = {"cmd": MSG_CLIENT_UPDATE_FILE, "payload": { "filename": self.filename, "content": content}}
         send_json(self.sock, msg)
 
     def closeEvent(self, event):
@@ -113,7 +113,7 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
         super().closeEvent(event)
 
     def route_message_to_editors(self, msg):
-        filename = msg.get("filename")
+        filename = msg.get("payload", {}).get("filename")
         editor = self.parent_selector.open_editors.get(filename)
         
         if editor and editor.isVisible():
@@ -131,12 +131,12 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
         try:
             cmd = msg.get("cmd")
             if cmd == MSG_CLIENT_UPDATE_FILE:
-                content = msg.get("content", "")
+                content = msg.get("payload", {}).get("content", "")
                 self.comm.update_signal.emit(content)
             elif cmd == MSG_SERVER_UPDATE_FILE_SUCCESS:
                 print("File update was successful.")
             elif cmd == MSG_SERVER_FAILURE:
-                error_msg = msg.get("message", "An error occurred.")
+                error_msg = msg.get("payload", {}).get("message", "An error occurred.")
                 print(f"Server Error: {error_msg}")
         except Exception as e:
             print(f"[Client] Error while handling message: {e}")
