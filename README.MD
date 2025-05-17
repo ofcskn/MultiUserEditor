@@ -86,6 +86,18 @@ python server/server.py
 python client/client.py
 ```
 
+## Build
+
+- Check the pyinstaller is installed:
+
+```bash
+pip install pyinstaller
+```
+
+```bash
+pyinstaller --noconfirm --clean --windowed main.py
+```
+
 ## 🧪 JSON Database Example
 
 ### data/users.json
