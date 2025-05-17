@@ -40,7 +40,7 @@ def handle_update_file(conn, filename, new_content, username):
         return
 
     # Confirm save to sender
-    send_json(conn, {"cmd": MSG_FILE_UPDATE_SUCCESS, "content": "File updated"})
+    send_json(conn, {"cmd": MSG_FILE_UPDATE_SUCCESS, "content": "File updated", "filename": filename})
 
     # Notify other users
     broadcast_update(clients, filename, json.dumps({

@@ -104,6 +104,13 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
             self.parent_selector.open_editors.pop(self.filename, None)
         super().closeEvent(event)
 
+    def route_message_to_editors(self, msg):
+        filename = msg.get("filename")
+        editor = self.parent_selector.open_editors.get(filename)
+        
+        if editor and editor.isVisible():
+            editor.handle_server_message(msg)
+
     def apply_update(self, content):
         self.text_edit.blockSignals(True)
         self.text_edit.setHtml(content)

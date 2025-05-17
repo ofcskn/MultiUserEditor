@@ -3,7 +3,6 @@ from PySide6.QtCore import Signal
 from client.views.layout_view import BaseWindow
 from core.constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
 from core.user_manager import load_users
-from client.views.editor_view import EditorWindow
 from PySide6.QtCore import Qt
 from core.utils import send_json
 from PySide6.QtWidgets import QListWidgetItem
@@ -102,34 +101,7 @@ class FileSelector(BaseWindow):
                 self.join_file(item)
 
     def open_editor_window(self, filename, content, isViewer=False):
-        # If the file is already open, bring the existing editor window to front
-        if filename in self.open_editors:
-            editor = self.open_editors[filename]
-            editor.activateWindow()
-            editor.raise_()
-            return
-
-        # Create new editor window passing all required references
-        editor = EditorWindow(
-            self.sock,
-            self.session,
-            self.receiver,
-            self.controller,
-            filename=filename,
-            parent=self
-        )
-
-        # Set the content of the editor
-        editor.text_edit.setText(content)
-
-        # If user is a viewer, set editor to read-only
-        if isViewer:
-            editor.text_edit.setReadOnly(True)
-
-        # Show the editor window and track it
-        editor.show()
-        self.open_editors[filename] = editor
-
+        self.controller.show_editor(filename, content, self, isViewer)
 
     def create_file(self):
         file_extension = self.selected_extension
@@ -150,7 +122,7 @@ class FileSelector(BaseWindow):
         msg = {"cmd": MSG_JOIN_FILE, "filename": filename}
         send_json(self.sock, msg)
 
-    def listen_server(self, msg):
+    def handle_server_message(self, msg):
         if msg.get("cmd") == MSG_FILE_LIST:
             self.file_list.clear()
             for filename in msg.get("files", []):
