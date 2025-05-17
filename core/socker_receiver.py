@@ -9,6 +9,10 @@ class SocketReceiver(QThread):
         super().__init__(parent)
         self.sock = sock
         self.running = True
+        self._target = None
+
+    def set_target(self, target):
+        self._target = target
 
     def run(self):
         while self.running:

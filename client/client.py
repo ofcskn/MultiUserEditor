@@ -1,9 +1,8 @@
 import socket
 import sys
 from PySide6.QtWidgets import (QApplication)
+from client.controllers.main_controller import MainApp
 from client.session import AppSession
-from client.views.layout_view import BaseWindow
-from client.views.login_view import LoginWindow
 from core.constants import HOST, PORT
 from core.socker_receiver import SocketReceiver
 
@@ -16,7 +15,11 @@ def start_client():
     # Initialize shared session object (if necessary)
     session = AppSession()
 
-    win = LoginWindow(sock, session) 
+    # ✅ Create ONE SocketReceiver instance globally
+    receiver = SocketReceiver(sock)
+    receiver.start()
+
+    win = MainApp(sock, session, receiver)
     win.show()
 
     sys.exit(app.exec())

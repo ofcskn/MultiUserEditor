@@ -1,20 +1,17 @@
-import threading
-import json
 from PySide6.QtWidgets import (QMenu, QLineEdit, QPushButton, QVBoxLayout, QWidget, QListWidget, QMessageBox, QLabel, QAbstractItemView)
 from PySide6.QtCore import Signal
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
+from core.constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
 from core.user_manager import load_users
 from client.views.editor_view import EditorWindow
 from PySide6.QtCore import Qt
 from core.utils import send_json
+from PySide6.QtWidgets import QListWidgetItem
 
 class FileSelector(BaseWindow):
     open_editor_signal = Signal(str, str, bool)  # filename, content, isViewed
-    def __init__(self, sock, session):
-        super().__init__(sock, session)
-        self.sock = sock
-
+    def __init__(self, sock, session, receiver, controller):
+        super().__init__(sock, session, receiver, controller)
         # Get username from the session
         current_username = self.session.get_user()
 
@@ -31,17 +28,26 @@ class FileSelector(BaseWindow):
         self.new_file_input = QLineEdit()
         self.new_file_input.setPlaceholderText("New file name")
 
+        # Create a select box to choose a file type 
+        self.selected_extension = ".txt"  # Default extension
+        self.file_extension_list_label = QLabel(f"Choose a file type")
+        self.file_extension_list = QListWidget()
+        self.file_extension_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+
+        # Connect selection
+        self.file_extension_list.itemClicked.connect(self.on_extension_selected)
+
         # Scrollable list for viewers
         self.viewers_list_label = QLabel(f"Viewers (choose)")
         self.file_viewers_list = QListWidget()
         self.file_viewers_list.setSelectionMode(QAbstractItemView.MultiSelection)
-        self.file_viewers_list.setFixedHeight(100)  # adjust as needed
+        self.file_viewers_list.setFixedHeight(50) 
 
         self.editors_list_label = QLabel(f"Editors (choose)")
         # Scrollable list for editors
         self.file_editors_list = QListWidget()
         self.file_editors_list.setSelectionMode(QAbstractItemView.MultiSelection)
-        self.file_editors_list.setFixedHeight(100)  # adjust as needed
+        self.file_editors_list.setFixedHeight(50)  # adjust as needed
 
         # Get all usernames without current user
         for user in load_users():
@@ -57,6 +63,15 @@ class FileSelector(BaseWindow):
         self.layout.addWidget(self.new_file_input_label)
         self.layout.addWidget(self.new_file_input)
 
+        self.layout.addWidget(self.file_extension_list_label)
+        self.layout.addWidget(self.file_extension_list)
+
+        # Add known file extensions
+        known_extensions = [".py", ".txt", ".md", ".json", ".csv", ".html", ".xml", ".yaml", ".ini"]
+        for ext in known_extensions:
+            self.file_extension_list.addItem(ext)
+
+
         self.layout.addWidget(self.viewers_list_label)
         self.layout.addWidget(self.file_viewers_list)
 
@@ -65,16 +80,17 @@ class FileSelector(BaseWindow):
 
         self.layout.addWidget(self.new_file_btn)
 
-        self.container = QWidget()
-        self.container.setLayout(self.layout)
-        self.setCentralWidget(self.container)
-
         self.new_file_btn.clicked.connect(self.create_file)
         self.file_list.itemDoubleClicked.connect(self.join_file)
 
         self.file_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_list.customContextMenuRequested.connect(self.on_right_click_to_file_name)
         
+        self.setLayout(self.layout)
+
+    def on_extension_selected(self, item):
+        self.selected_extension = item.text()
+
     def on_right_click_to_file_name(self, position):
         item = self.file_list.itemAt(position)
         if item:
@@ -86,23 +102,37 @@ class FileSelector(BaseWindow):
                 self.join_file(item)
 
     def open_editor_window(self, filename, content, isViewer=False):
-        # Eğer dosya zaten açıksa, mevcut pencereyi göster ve odakla
+        # If the file is already open, bring the existing editor window to front
         if filename in self.open_editors:
             editor = self.open_editors[filename]
             editor.activateWindow()
             editor.raise_()
             return
-        
-        editor = EditorWindow(self.sock, self.session, filename=filename, parent=self)
+
+        # Create new editor window passing all required references
+        editor = EditorWindow(
+            self.sock,
+            self.session,
+            self.receiver,
+            self.controller,
+            filename=filename,
+            parent=self
+        )
+
+        # Set the content of the editor
         editor.text_edit.setText(content)
 
+        # If user is a viewer, set editor to read-only
         if isViewer:
             editor.text_edit.setReadOnly(True)
 
+        # Show the editor window and track it
         editor.show()
         self.open_editors[filename] = editor
 
+
     def create_file(self):
+        file_extension = self.selected_extension
         name = self.new_file_input.text().strip()
         
         selected_viewers = [item.text() for item in self.file_viewers_list.selectedItems()]
@@ -112,7 +142,7 @@ class FileSelector(BaseWindow):
         owner_username = self.session.get_user()
 
         if name:
-            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors}
+            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors, "extension": file_extension}
             send_json(self.sock, msg)
 
     def join_file(self, item):
@@ -120,17 +150,23 @@ class FileSelector(BaseWindow):
         msg = {"cmd": MSG_JOIN_FILE, "filename": filename}
         send_json(self.sock, msg)
 
-    def handle_server_message(self, msg: dict):
+    def listen_server(self, msg):
         if msg.get("cmd") == MSG_FILE_LIST:
             self.file_list.clear()
-            for f in msg.get("files", []):
-                self.file_list.addItem(f)
-
-        elif msg.get("cmd") in [MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER]:
+            for filename in msg.get("files", []):
+                item = QListWidgetItem(filename)
+                self.file_list.addItem(item)
+        if msg.get("cmd") == MSG_FILE_LIST_UPDATE:
+            self.file_list.addItem(msg.get("filename"))
+        if msg.get("cmd") in [MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER]:
             filename = msg.get("filename", "[dosya]")
             content = msg.get("content", "")
             is_viewer = msg.get("cmd") == MSG_FILE_LOAD_VIEWER
             self.open_editor_signal.emit(filename, content, is_viewer)
-
-        elif msg.get("cmd") == MSG_ERROR:
+        if msg.get("cmd") == MSG_ERROR:
             QMessageBox.critical(self, "Hata", msg.get("message", "Bir hata oluştu."))
+
+    def load_files(self, files):
+        self.file_list.clear()
+        for filename in files:
+            self.file_list.addItem(QListWidgetItem(filename))

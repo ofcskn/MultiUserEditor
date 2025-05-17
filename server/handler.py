@@ -1,30 +1,18 @@
 import json
 import threading
-from core.utils import generate_unique_filename, recv_json, send_json
-from server.broadcast import broadcast_update
+from core.utils import generate_unique_filename, get_filenames, recv_json, send_json
+from server.broadcast import broadcast_update, broadcast_update_for_new_file
 from core.user_manager import load_users, save_user, validate_user
-from core.file_manager import load_files, add_file_metadata, save_file_content
-from core.constants import FILES_JSON, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
+from core.file_manager import get_permissions, load_filenames, load_files, add_file_metadata, read_file_content, save_file_content
+from core.constants import MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
-files = load_files()    # {filename: content}
+client_files = {}
+
 lock = threading.Lock()
+files = []
 
-def get_permissions(filename, username):
-    # Load permissions from files.json
-    with open(FILES_JSON) as f:
-        file_permissions = json.load(f)
-
-    for entry in file_permissions:
-        if entry['filename'] == filename:
-            if username == entry['owner']:
-                return 'owner'
-            elif username in entry['editors']:
-                return 'editor'
-            elif username in entry['viewers']:
-                return 'viewer'
-    return None
 
 def handle_update_file(conn, filename, new_content, username):
     if not filename or new_content is None:
@@ -40,7 +28,7 @@ def handle_update_file(conn, filename, new_content, username):
 
     # Save to memory
     with lock:
-        files[filename] = new_content
+        client_files[filename] = new_content
     
     # Save to disk
     file_path = os.path.join(SAVE_FOLDER, filename)
@@ -53,12 +41,6 @@ def handle_update_file(conn, filename, new_content, username):
 
     # Confirm save to sender
     send_json(conn, {"cmd": MSG_FILE_UPDATE_SUCCESS, "content": "File updated"})
-
-    # # Notify other users
-    # broadcast_update(clients, filename, {
-    #     "cmd": MSG_FILE_UPDATE,
-    #     "content": new_content
-    # }, exclude_sock=conn)
 
     # Notify other users
     broadcast_update(clients, filename, json.dumps({
@@ -100,9 +82,10 @@ def handle_client(conn, addr):
                             })
                         else:
                             clients[conn] = {'username': username, 'file': None}
+                            filenames = load_filenames(username) 
                             send_json(conn, {
-                                "cmd": MSG_FILE_LIST,
-                                "files": list(files.keys()),
+                                "cmd": MSG_FILES_PAGE_REDIRECT,
+                                "files": filenames,
                                 "username": username
                             })
                     else:
@@ -112,39 +95,34 @@ def handle_client(conn, addr):
                             "cmd": MSG_LOGIN_ERROR,
                             "message": "Invalid credentials. Login is not successful."
                         })
-
                 elif cmd == MSG_CREATE_FILE:
                     owner = msg.get("owner")
                     filename = msg.get("filename")
+                    extension = msg.get("extension")
                     # Create a new filename
-                    filename = generate_unique_filename(owner, filename)
+                    new_filename = generate_unique_filename(owner, filename, extension)
                     viewers = msg.get("viewers", [])  # Ensure fallback to empty list
                     editors = msg.get("editors", [])
-
-                    # Save the file to the
-                    save_file_content(filename, "")
                     
                     with threading.Lock():
-                        files[filename] = ""
-                        add_file_metadata(filename, owner, viewers, editors)
+                        client_files[new_filename] = ""
+                        # Save the file to the
+                        save_file_content(new_filename, "")
+                        add_file_metadata(new_filename, extension, owner, viewers, editors)
 
-                    # send_json(conn, {"cmd": MSG_FILE_LIST, "files": list(files.keys())})
-                    conn.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
+                    filenames = load_filenames(username)  
 
-                    # broadcast update for MSG_FILE_LIST
-                    for client in clients:
-                        if client != conn:
-                            try:
-                                client.sendall(json.dumps({"cmd": MSG_FILE_LIST, "files": list(files.keys())}).encode())
-                                # send_json(conn, {"cmd": MSG_FILE_LIST, "files": list(files.keys())})
-                            except:
-                                continue
+                    send_json(conn, {"cmd": MSG_FILE_LIST, "files": filenames})
+
+                    # broadcast_update_for_new_file(clients, new_filename, conn)
+
 
                 elif cmd == MSG_JOIN_FILE:
                     filename = msg.get("filename")
                     username = clients[conn]['username']
                     clients[conn]['file'] = filename
-                    content = files.get(filename, "")
+                    content = read_file_content(filename)
+                    print("content", content)
 
                     # permission for the file 
                     permission_of_file = get_permissions(filename, username)

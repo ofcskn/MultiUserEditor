@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
 from client.views.layout_view import BaseWindow
-from core.constants import HOST, MSG_FILE_LIST, MSG_LOGIN, MSG_LOGIN_ERROR, MSG_USER_ACTIVE_SESSION, PORT
+from core.constants import MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_LOGIN_ERROR, MSG_USER_ACTIVE_SESSION
 from client.views.file_selector_view import FileSelector
 from core.utils import send_json
 
 class LoginWindow(BaseWindow):
-    def __init__(self, sock, session):
-        super().__init__(sock, session)
+    def __init__(self, sock, session, receiver, controller):
+        super().__init__(sock, session, receiver, controller)
         self.setWindowTitle("Login")
 
         self.layout = QVBoxLayout()
@@ -22,10 +22,7 @@ class LoginWindow(BaseWindow):
         self.layout.addWidget(self.username_input)
         self.layout.addWidget(self.password_input)
         self.layout.addWidget(self.login_button)
-
-        self.container = QWidget()
-        self.container.setLayout(self.layout)
-        self.setCentralWidget(self.container)
+        self.setLayout(self.layout)
 
         self.login_button.clicked.connect(self.login)
 
@@ -39,7 +36,7 @@ class LoginWindow(BaseWindow):
             # Create a session to hold important informations
             self.session.set_user(username)
 
-    def handle_server_message(self, msg: dict):
+    def handle_server_message(self, msg):
         cmd = msg.get("cmd")
         if cmd == MSG_LOGIN_ERROR:
             QMessageBox.warning(self, "Login error: ", msg.get("message"))
@@ -47,10 +44,5 @@ class LoginWindow(BaseWindow):
         elif cmd == MSG_USER_ACTIVE_SESSION:
             QMessageBox.warning(self, "Login error: ", msg.get("message"))
             return
-        elif cmd == MSG_FILE_LIST:
-            self.selector = FileSelector(self.sock, self.session)
-            self.selector.file_list.clear()
-            for f in msg.get("files", []):
-                self.selector.file_list.addItem(f)
-                # Update the content of the current window
-                self.setCentralWidget(self.selector)
+        elif cmd == MSG_FILES_PAGE_REDIRECT:
+            self.controller.show_selector(msg.get("files", []))
