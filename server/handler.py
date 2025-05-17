@@ -4,7 +4,7 @@ from core.utils import generate_unique_filename, get_filenames, recv_json, send_
 from server.broadcast import broadcast_update, broadcast_update_for_new_file
 from core.user_manager import load_users, save_user, validate_user
 from core.file_manager import get_permissions, load_filenames, load_files, add_file_metadata, read_file_content, save_file_content
-from core.constants import MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
+from core.constants import MSG_CREATE_FILE_ERROR, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
@@ -100,6 +100,10 @@ def handle_client(conn, addr):
                     owner = msg.get("owner")
                     filename = msg.get("filename")
                     extension = msg.get("extension")
+
+                    if (filename == None or filename == "") or extension == None: 
+                        send_json(conn, {"cmd": MSG_CREATE_FILE_ERROR, "message": "The extension or filename is not valid."})
+ 
                     # Create a new filename
                     new_filename = generate_unique_filename(owner, filename, extension)
                     viewers = msg.get("viewers", [])  # Ensure fallback to empty list
