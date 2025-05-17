@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QMenu, QLineEdit, QPushButton, QVBoxLayout, QWidget, QListWidget, QMessageBox, QLabel, QAbstractItemView)
 from PySide6.QtCore import Signal
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_CREATE_FILE, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
+from core.constants import MSG_CREATE_FILE, MSG_CREATE_FILE_ERROR, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
 from core.user_manager import load_users
 from PySide6.QtCore import Qt
 from core.utils import send_json
@@ -116,6 +116,8 @@ class FileSelector(BaseWindow):
         if name:
             msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors, "extension": file_extension}
             send_json(self.sock, msg)
+        else:
+            QMessageBox.critical(self, "Hata", "Please enter a filename.")
 
     def join_file(self, item):
         filename = item.text()
@@ -136,7 +138,9 @@ class FileSelector(BaseWindow):
             is_viewer = msg.get("cmd") == MSG_FILE_LOAD_VIEWER
             self.open_editor_signal.emit(filename, content, is_viewer)
         if msg.get("cmd") == MSG_ERROR:
-            QMessageBox.critical(self, "Hata", msg.get("message", "Bir hata oluştu."))
+            QMessageBox.critical(self, "Hata", msg.get("message", "An error occured.."))
+        if msg.get("cmd") == MSG_CREATE_FILE_ERROR:
+            QMessageBox.critical(self, "Hata", msg.get("message", "An error occured."))
 
     def load_files(self, files):
         self.file_list.clear()
