@@ -4,7 +4,7 @@ from core.utils import generate_unique_filename, get_filenames, recv_json, send_
 from server.broadcast import broadcast_update, broadcast_update_for_new_file
 from core.user_manager import load_users, save_user, validate_user
 from core.file_manager import get_permissions, load_filenames, load_files, add_file_metadata, read_file_content, save_file_content
-from core.constants import MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
+from core.constants import MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
@@ -43,10 +43,11 @@ def handle_update_file(conn, filename, new_content, username):
     send_json(conn, {"cmd": MSG_FILE_UPDATE_SUCCESS, "content": "File updated", "filename": filename})
 
     # Notify other users
-    broadcast_update(clients, filename, json.dumps({
+    broadcast_update(clients, filename, {
         "cmd": MSG_FILE_UPDATE,
-        "content": new_content
-    }), exclude_sock=conn)
+        "content": new_content,
+        "filename": filename
+    }, exclude_sock=conn)
 
 
 def handle_client(conn, addr):
@@ -110,9 +111,7 @@ def handle_client(conn, addr):
                         save_file_content(new_filename, "")
                         add_file_metadata(new_filename, extension, owner, viewers, editors)
 
-                    filenames = load_filenames(username)  
-
-                    send_json(conn, {"cmd": MSG_FILE_LIST, "files": filenames})
+                    send_json(conn, {"cmd": MSG_FILE_LIST_UPDATE, "filename": new_filename})
 
                     broadcast_update_for_new_file(clients, new_filename, conn)
 

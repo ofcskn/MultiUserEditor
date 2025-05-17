@@ -11,7 +11,7 @@ def broadcast_update(clients, filename, message, exclude_sock=None):
     for client, info in clients.items():
         if info.get('file') == filename and client != exclude_sock:
             try:
-                client.sendall(message.encode())
+                send_json(client, message)
             except:
                 continue
 
