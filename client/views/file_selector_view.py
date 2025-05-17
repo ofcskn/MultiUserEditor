@@ -131,7 +131,7 @@ class FileSelector(BaseWindow):
         if msg.get("cmd") == MSG_FILE_LIST_UPDATE:
             self.file_list.addItem(msg.get("filename"))
         if msg.get("cmd") in [MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER]:
-            filename = msg.get("filename", "[dosya]")
+            filename = msg.get("filename")
             content = msg.get("content", "")
             is_viewer = msg.get("cmd") == MSG_FILE_LOAD_VIEWER
             self.open_editor_signal.emit(filename, content, is_viewer)

@@ -1,3 +1,4 @@
+import os
 from client.views.layout_view import BaseWindow
 from core.constants import MSG_ERROR, MSG_FILE_UPDATE, MSG_FILE_UPDATE_SUCCESS
 import threading
@@ -16,6 +17,8 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
         super().__init__(sock, session, receiver, controller)
         self.parent_selector = parent 
         self.filename = filename
+        
+        self.extension = os.path.splitext(self.filename)[1] 
 
         username = self.session.get_user()
         self.setWindowTitle(f"{username} - Düzenleniyor: {filename}")
@@ -26,15 +29,16 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
 
         self.text_edit = QTextEdit()
 
-        self.toolbar = QToolBar()
-        self.init_toolbar()
-
         self.save_button = QPushButton("Kaydet")
         self.save_button.clicked.connect(self.save_file)
 
         # --- Layout ---
         self.layout = QVBoxLayout()
-        self.layout.addWidget(self.toolbar)
+        if self.extension == ".html":
+            self.toolbar = QToolBar()
+            self.init_toolbar()
+            self.layout.addWidget(self.toolbar)
+
         self.layout.addWidget(self.text_edit)
         self.layout.addWidget(self.save_button)
 
@@ -95,7 +99,11 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
         return fmt
 
     def save_file(self):
-        content = self.text_edit.toHtml()
+        if self.extension == ".html":
+            content = self.text_edit.toHtml()
+        else:
+            content = self.text_edit.toPlainText()
+
         msg = {"cmd": MSG_FILE_UPDATE, "filename": self.filename, "content": content}
         send_json(self.sock, msg)
 
@@ -113,7 +121,10 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
 
     def apply_update(self, content):
         self.text_edit.blockSignals(True)
-        self.text_edit.setHtml(content)
+        if self.extension == ".html":
+            self.text_edit.setHtml(content)
+        else:
+            self.text_edit.setPlainText(content)
         self.text_edit.blockSignals(False)
 
     def handle_server_message(self, msg):
