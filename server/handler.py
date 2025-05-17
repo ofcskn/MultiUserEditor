@@ -114,15 +114,13 @@ def handle_client(conn, addr):
 
                     send_json(conn, {"cmd": MSG_FILE_LIST, "files": filenames})
 
-                    # broadcast_update_for_new_file(clients, new_filename, conn)
-
+                    broadcast_update_for_new_file(clients, new_filename, conn)
 
                 elif cmd == MSG_JOIN_FILE:
                     filename = msg.get("filename")
                     username = clients[conn]['username']
                     clients[conn]['file'] = filename
                     content = read_file_content(filename)
-                    print("content", content)
 
                     # permission for the file 
                     permission_of_file = get_permissions(filename, username)

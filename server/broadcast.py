@@ -3,6 +3,7 @@
 import json
 from core.constants import FILES_JSON, MSG_FILE_LIST_UPDATE
 from core.file_manager import get_permissions
+from core.utils import send_json
 
 
 def broadcast_update(clients, filename, message, exclude_sock=None):
@@ -41,10 +42,7 @@ def broadcast_update_for_new_file(clients, filename, exclude_sock=None):
             username = client_info.get("username")
             if username in affected_users:
                 try:
-                    client_sock.sendall(json.dumps({
-                        "cmd": MSG_FILE_LIST_UPDATE,  # Client should handle this
-                        "filename": filename
-                    }).encode('utf-8'))
+                    send_json(client_sock, {"cmd": MSG_FILE_LIST_UPDATE, "filename": filename})
                 except Exception as e:
                     print(f"Failed to notify {username} about new file: {e}")
 

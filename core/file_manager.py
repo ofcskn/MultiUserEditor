@@ -48,8 +48,10 @@ def load_files(username):
     return files
 
 def load_filenames(username):
-    """Returns a list of filenames from files.json owned by the specified username."""
+    """Returns a list of filenames from files.json accessible by the specified username 
+    (owner, editor, or viewer)."""
     filenames = []
+
     try:
         if not isValidUser(username):
             return filenames
@@ -58,10 +60,15 @@ def load_filenames(username):
             metadata_list = json.load(f)
 
             for meta in metadata_list:
-                if meta.get('owner') == username:
+                owner = meta.get('owner')
+                viewers = meta.get('viewers', [])
+                editors = meta.get('editors', [])
+
+                if username == owner or username in viewers or username in editors:
                     filename = meta.get('filename')
-                    full_filename = filename
-                    filenames.append(full_filename)
+                    if filename:
+                        filenames.append(filename)
+
     except Exception as e:
         print("Error loading filenames:", str(e))
 
