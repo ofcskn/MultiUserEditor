@@ -4,7 +4,7 @@ from core.utils import generate_unique_filename, get_filenames, recv_json, send_
 from server.broadcast import broadcast_update, broadcast_update_for_new_file
 from core.user_manager import load_users, save_user, validate_user
 from core.file_manager import get_permissions, load_filenames, load_files, add_file_metadata, read_file_content, save_file_content
-from core.constants import MSG_CREATE_FILE_ERROR, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER, MSG_FILE_UPDATE_ERROR, MSG_FILE_UPDATE_SUCCESS, MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_CREATE_FILE, MSG_FILE_LIST, MSG_JOIN_FILE, MSG_FILE_UPDATE, MSG_ERROR, MSG_LOGIN_ERROR, MSG_PERMISSION_ERROR, MSG_SUCCESS, MSG_USER_ACTIVE_SESSION, SAVE_FOLDER
+from core.constants import MSG_SERVER_CREATE_FILE_FAILURE, MSG_SERVER_UPDATE_LISTED_FILES, MSG_SERVER_LOAD_FILE, MSG_SERVER_LOAD_FILE_VIEWER, MSG_SERVER_UPDATE_FILE_FAILURE, MSG_SERVER_UPDATE_FILE_SUCCESS, MSG_SERVER_REDIRECT_TO_FILES_VIEW, MSG_CLIENT_LOGIN, MSG_CLIENT_CREATE_FILE, MSG_CLIENT_LIST_FILES, MSG_CLIENT_JOIN_FILE, MSG_CLIENT_UPDATE_FILE, MSG_SERVER_FAILURE, MSG_SERVER_LOGIN_FAILURE, MSG_SERVER_PERMISSION_FAILURE, MSG_SERVER_SUCCESS, MSG_SERVER_USER_ACTIVE_SESSION, SAVE_FOLDER
 import os 
 
 clients = {}  # {conn: {'username': ..., 'file': ...}}
@@ -17,13 +17,13 @@ files = []
 def handle_update_file(conn, filename, new_content, username):
     if not filename or new_content is None:
         print("Invalid filename or content")
-        send_json(conn, {"msg": MSG_ERROR, "content": "Invalid filename or content"})
+        send_json(conn, {"msg": MSG_SERVER_FAILURE, "content": "Invalid filename or content"})
         return
 
     permission = get_permissions(filename, username)
     if permission not in ("owner", "editor"):
         print("Permission denied for updating the file.")
-        send_json(conn, {"cmd": MSG_ERROR, "content": "Permission denied"})
+        send_json(conn, {"cmd": MSG_SERVER_FAILURE, "content": "Permission denied"})
         return
 
     # Save to memory
@@ -36,15 +36,15 @@ def handle_update_file(conn, filename, new_content, username):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
     except Exception as e:
-        send_json(conn, {"cmd": MSG_FILE_UPDATE_ERROR, "content": f"Failed to save file: {str(e)}"})
+        send_json(conn, {"cmd": MSG_SERVER_UPDATE_FILE_FAILURE, "content": f"Failed to save file: {str(e)}"})
         return
 
     # Confirm save to sender
-    send_json(conn, {"cmd": MSG_FILE_UPDATE_SUCCESS, "content": "File updated", "filename": filename})
+    send_json(conn, {"cmd": MSG_SERVER_UPDATE_FILE_SUCCESS, "content": "File updated", "filename": filename})
 
     # Notify other users
     broadcast_update(clients, filename, {
-        "cmd": MSG_FILE_UPDATE,
+        "cmd": MSG_CLIENT_UPDATE_FILE,
         "content": new_content,
         "filename": filename
     }, exclude_sock=conn)
@@ -64,7 +64,7 @@ def handle_client(conn, addr):
             try:
                 cmd = msg.get("cmd")
 
-                if cmd == MSG_LOGIN:
+                if cmd == MSG_CLIENT_LOGIN:
                     username = msg.get("username")
                     password = msg.get("password")
                     users = load_users()
@@ -77,7 +77,7 @@ def handle_client(conn, addr):
                         if any(data['username'] == username for data in clients.values()):
                                 print(f"active session for {username}")
                                 send_json(conn, {
-                                "cmd": MSG_USER_ACTIVE_SESSION,
+                                "cmd": MSG_SERVER_USER_ACTIVE_SESSION,
                                 "username": username,
                                 "message": f"There is a session for {username}."
                             })
@@ -85,7 +85,7 @@ def handle_client(conn, addr):
                             clients[conn] = {'username': username, 'file': None}
                             filenames = load_filenames(username) 
                             send_json(conn, {
-                                "cmd": MSG_FILES_PAGE_REDIRECT,
+                                "cmd": MSG_SERVER_REDIRECT_TO_FILES_VIEW,
                                 "files": filenames,
                                 "username": username
                             })
@@ -93,16 +93,16 @@ def handle_client(conn, addr):
                         print("Invalid credentials. Login is not successful.")
                         # send error response
                         send_json(conn, {
-                            "cmd": MSG_LOGIN_ERROR,
+                            "cmd": MSG_SERVER_LOGIN_FAILURE,
                             "message": "Invalid credentials. Login is not successful."
                         })
-                elif cmd == MSG_CREATE_FILE:
+                elif cmd == MSG_CLIENT_CREATE_FILE:
                     owner = msg.get("owner")
                     filename = msg.get("filename")
                     extension = msg.get("extension")
 
                     if (filename == None or filename == "") or extension == None: 
-                        send_json(conn, {"cmd": MSG_CREATE_FILE_ERROR, "message": "The extension or filename is not valid."})
+                        send_json(conn, {"cmd": MSG_SERVER_CREATE_FILE_FAILURE, "message": "The extension or filename is not valid."})
  
                     # Create a new filename
                     new_filename = generate_unique_filename(owner, filename, extension)
@@ -115,11 +115,11 @@ def handle_client(conn, addr):
                         save_file_content(new_filename, "")
                         add_file_metadata(new_filename, extension, owner, viewers, editors)
 
-                    send_json(conn, {"cmd": MSG_FILE_LIST_UPDATE, "filename": new_filename})
+                    send_json(conn, {"cmd": MSG_SERVER_UPDATE_LISTED_FILES, "filename": new_filename})
 
                     broadcast_update_for_new_file(clients, new_filename, conn)
 
-                elif cmd == MSG_JOIN_FILE:
+                elif cmd == MSG_CLIENT_JOIN_FILE:
                     filename = msg.get("filename")
                     username = clients[conn]['username']
                     clients[conn]['file'] = filename
@@ -129,13 +129,13 @@ def handle_client(conn, addr):
                     permission_of_file = get_permissions(filename, username)
                     if permission_of_file == "owner" or permission_of_file == "editor":
                         send_json(conn, {
-                            "cmd": MSG_FILE_LOAD,
+                            "cmd": MSG_SERVER_LOAD_FILE,
                             "content": content,
                             "filename": filename
                         })
                     elif permission_of_file == "viewer":
                         send_json(conn, {
-                        "cmd": MSG_FILE_LOAD_VIEWER,
+                        "cmd": MSG_SERVER_LOAD_FILE_VIEWER,
                         "content": content,
                         "filename": filename
                         })
@@ -143,11 +143,11 @@ def handle_client(conn, addr):
                         print("The user has not permission to open the file.")
                         # send error response
                         send_json(conn, {
-                            "cmd": MSG_PERMISSION_ERROR,
+                            "cmd": MSG_SERVER_PERMISSION_FAILURE,
                             "message": "You do not have permission to open this file."
                         })
 
-                elif cmd == MSG_FILE_UPDATE:
+                elif cmd == MSG_CLIENT_UPDATE_FILE:
                     filename = clients[conn]['file']
                     username = clients[conn]['username']
                     content = msg.get("content")
@@ -160,7 +160,7 @@ def handle_client(conn, addr):
                         print("The user has not permission to update the file.")
                         # send error response
                         send_json(conn, {
-                            "cmd": MSG_PERMISSION_ERROR,
+                            "cmd": MSG_SERVER_PERMISSION_FAILURE,
                             "message": "You do not have permission to update this file."
                         })
 

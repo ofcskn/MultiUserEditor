@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QVBoxLayout, QWidget, QPushButton, QMessageBox, QLineEdit)
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_FILES_PAGE_REDIRECT, MSG_LOGIN, MSG_LOGIN_ERROR, MSG_USER_ACTIVE_SESSION
+from core.constants import MSG_SERVER_REDIRECT_TO_FILES_VIEW, MSG_CLIENT_LOGIN, MSG_SERVER_LOGIN_FAILURE, MSG_SERVER_USER_ACTIVE_SESSION
 from core.utils import send_json
 from PySide6.QtCore import Qt
 
@@ -36,18 +36,20 @@ class LoginWindow(BaseWindow):
         password = self.password_input.text().strip()
 
         if username and password:
-            send_json(self.sock, {"cmd": MSG_LOGIN, "username": username, "password": password})
+            send_json(self.sock, {"cmd": MSG_CLIENT_LOGIN, "username": username, "password": password})
 
             # Create a session to hold important informations
             self.session.set_user(username)
+        else:
+            QMessageBox.warning(self, "Login error: ","Please enter your username and password.")
 
     def handle_server_message(self, msg):
         cmd = msg.get("cmd")
-        if cmd == MSG_LOGIN_ERROR:
+        if cmd == MSG_SERVER_LOGIN_FAILURE:
             QMessageBox.warning(self, "Login error: ", msg.get("message"))
             return
-        elif cmd == MSG_USER_ACTIVE_SESSION:
+        elif cmd == MSG_SERVER_USER_ACTIVE_SESSION:
             QMessageBox.warning(self, "Login error: ", msg.get("message"))
             return
-        elif cmd == MSG_FILES_PAGE_REDIRECT:
+        elif cmd == MSG_SERVER_REDIRECT_TO_FILES_VIEW:
             self.controller.show_selector(msg.get("files", []))

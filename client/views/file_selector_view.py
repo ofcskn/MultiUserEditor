@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QMenu, QLineEdit, QPushButton, QVBoxLayout, QWidget, QListWidget, QMessageBox, QLabel, QAbstractItemView)
 from PySide6.QtCore import Signal
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_CREATE_FILE, MSG_CREATE_FILE_ERROR, MSG_ERROR, MSG_FILE_LIST, MSG_FILE_LIST_UPDATE, MSG_FILE_LOAD_VIEWER, MSG_JOIN_FILE, MSG_FILE_LOAD
+from core.constants import MSG_CLIENT_CREATE_FILE, MSG_SERVER_CREATE_FILE_FAILURE, MSG_SERVER_FAILURE, MSG_CLIENT_LIST_FILES, MSG_SERVER_UPDATE_LISTED_FILES, MSG_SERVER_LOAD_FILE_VIEWER, MSG_CLIENT_JOIN_FILE, MSG_SERVER_LOAD_FILE
 from core.user_manager import load_users
 from PySide6.QtCore import Qt
 from core.utils import send_json
@@ -114,32 +114,32 @@ class FileSelector(BaseWindow):
         owner_username = self.session.get_user()
 
         if name:
-            msg = {"cmd": MSG_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors, "extension": file_extension}
+            msg = {"cmd": MSG_CLIENT_CREATE_FILE, "filename": name, "owner": owner_username, "viewers": selected_viewers, "editors": selected_editors, "extension": file_extension}
             send_json(self.sock, msg)
         else:
             QMessageBox.critical(self, "Hata", "Please enter a filename.")
 
     def join_file(self, item):
         filename = item.text()
-        msg = {"cmd": MSG_JOIN_FILE, "filename": filename}
+        msg = {"cmd": MSG_CLIENT_JOIN_FILE, "filename": filename}
         send_json(self.sock, msg)
 
     def handle_server_message(self, msg):
-        if msg.get("cmd") == MSG_FILE_LIST:
+        if msg.get("cmd") == MSG_CLIENT_LIST_FILES:
             self.file_list.clear()
             for filename in msg.get("files", []):
                 item = QListWidgetItem(filename)
                 self.file_list.addItem(item)
-        if msg.get("cmd") == MSG_FILE_LIST_UPDATE:
+        if msg.get("cmd") == MSG_SERVER_UPDATE_LISTED_FILES:
             self.file_list.addItem(msg.get("filename"))
-        if msg.get("cmd") in [MSG_FILE_LOAD, MSG_FILE_LOAD_VIEWER]:
+        if msg.get("cmd") in [MSG_SERVER_LOAD_FILE, MSG_SERVER_LOAD_FILE_VIEWER]:
             filename = msg.get("filename")
             content = msg.get("content", "")
-            is_viewer = msg.get("cmd") == MSG_FILE_LOAD_VIEWER
+            is_viewer = msg.get("cmd") == MSG_SERVER_LOAD_FILE_VIEWER
             self.open_editor_signal.emit(filename, content, is_viewer)
-        if msg.get("cmd") == MSG_ERROR:
+        if msg.get("cmd") == MSG_SERVER_FAILURE:
             QMessageBox.critical(self, "Hata", msg.get("message", "An error occured.."))
-        if msg.get("cmd") == MSG_CREATE_FILE_ERROR:
+        if msg.get("cmd") == MSG_SERVER_CREATE_FILE_FAILURE:
             QMessageBox.critical(self, "Hata", msg.get("message", "An error occured."))
 
     def load_files(self, files):

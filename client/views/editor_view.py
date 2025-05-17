@@ -1,6 +1,6 @@
 import os
 from client.views.layout_view import BaseWindow
-from core.constants import MSG_ERROR, MSG_FILE_UPDATE, MSG_FILE_UPDATE_SUCCESS
+from core.constants import MSG_SERVER_FAILURE, MSG_CLIENT_UPDATE_FILE, MSG_SERVER_UPDATE_FILE_SUCCESS
 import threading
 import json
 from PySide6.QtWidgets import (QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit, QToolBar)
@@ -104,7 +104,7 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
         else:
             content = self.text_edit.toPlainText()
 
-        msg = {"cmd": MSG_FILE_UPDATE, "filename": self.filename, "content": content}
+        msg = {"cmd": MSG_CLIENT_UPDATE_FILE, "filename": self.filename, "content": content}
         send_json(self.sock, msg)
 
     def closeEvent(self, event):
@@ -130,12 +130,12 @@ class EditorWindow(BaseWindow):  # Inherits BaseWindow, not QMainWindow
     def handle_server_message(self, msg):
         try:
             cmd = msg.get("cmd")
-            if cmd == MSG_FILE_UPDATE:
+            if cmd == MSG_CLIENT_UPDATE_FILE:
                 content = msg.get("content", "")
                 self.comm.update_signal.emit(content)
-            elif cmd == MSG_FILE_UPDATE_SUCCESS:
+            elif cmd == MSG_SERVER_UPDATE_FILE_SUCCESS:
                 print("File update was successful.")
-            elif cmd == MSG_ERROR:
+            elif cmd == MSG_SERVER_FAILURE:
                 error_msg = msg.get("message", "An error occurred.")
                 print(f"Server Error: {error_msg}")
         except Exception as e:
