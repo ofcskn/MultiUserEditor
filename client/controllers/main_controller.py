@@ -1,7 +1,9 @@
+import os
 from PySide6.QtWidgets import (QMainWindow)
 from client.views.editor_view import EditorWindow
 from client.views.file_selector_view import FileSelector
 from client.views.login_view import LoginWindow
+from PySide6.QtGui import QIcon
 
 class MainApp(QMainWindow):
     def __init__(self, sock, session, receiver):
@@ -9,9 +11,8 @@ class MainApp(QMainWindow):
         self.sock = sock
         self.session = session
         self.receiver = receiver
-
         self.current_view = None
-
+        self.showMaximized()
         self.show_login()
 
     def show_login(self):
@@ -23,6 +24,7 @@ class MainApp(QMainWindow):
                 pass  # already disconnected or was never connected
 
         self.current_view = LoginWindow(self.sock, self.session, self.receiver, self)
+        self.setWindowTitle("Login or Register")
         self.setCentralWidget(self.current_view)
 
         # Connect new view
@@ -36,6 +38,7 @@ class MainApp(QMainWindow):
                 pass  # already disconnected or was never connected
 
         self.current_view = FileSelector(self.sock, self.session, self.receiver, self)
+        self.setWindowTitle("File Selector")
         self.setCentralWidget(self.current_view)
 
         # Connect new view to receiver
@@ -59,6 +62,7 @@ class MainApp(QMainWindow):
             filename=filename,
             parent=fileSelector
         )
+        self.setWindowTitle("Editor Page")
 
         # Set the content of the editor
         self.current_view.text_edit.setText(content)
