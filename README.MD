@@ -56,7 +56,25 @@ MultiUserEditor/
 - PySide6
 - (No external server or database required)
 
-Install dependencies:
+## 🔧 Create a virtual environment and install dependencies
+
+- Create a virtual environment:
+
+- For Linux:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+- For Windows:
+
+```bash
+python -m venv .venv
+.venv/Scripts/activate
+```
+
+- Install dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -69,7 +87,7 @@ pip install -r requirements.txt
 - Run both server and client with one command:
 
 ```bash
-python run.py
+python main.py
 ```
 
 ### Option 2: Manual Mode (Separate Terminals)
@@ -77,13 +95,13 @@ python run.py
 - Run the server:
 
 ```bash
-python server/server.py
+python run_server.py
 ```
 
 - In another terminal, run the client:
 
 ```bash
-python client/client.py
+python run_client.py
 ```
 
 ## Build
@@ -120,7 +138,6 @@ pyinstaller --noconfirm --clean --windowed main.py
     "owner": "admin",
     "editors": "user",
     "viewers": "user",
-    "siz": 0,
     "last_modified": "2025-05-14T12:00:00"
   }
 ]
@@ -132,21 +149,11 @@ pyinstaller --noconfirm --clean --windowed main.py
 - 🔁 Live synchronization with document diffing
 - 🔒 Role-based access control
 
-# 👨‍💻 Author
-
-Ömer Faruk COŞKUN (@ofcskn)
-
 # PROTOCOL
 
 [Protocol-Turkish](protocols/PROTOCOL_TR.MD)
 [Protocol-English](protocols/PROTOCOL_EN.MD)
 
-# VERSIONS
+# 👨‍💻 Author
 
-## VERSION 1.0 ROADMAP
-
-1. Create a basic socket server and client.
-2. Use PySide6 for GUI.
-3. Add JSON databases for user and file management.
-4. Add permission management for users.
-5. Refactor the code.
+Ömer Faruk COŞKUN (@ofcskn)
