@@ -1,2 +1,3 @@
 tk
 pyside6
+pyinstaller
